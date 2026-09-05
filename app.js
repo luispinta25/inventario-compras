@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260905.3';
+const APP_BUILD = '20260905.4';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -119,7 +119,7 @@ const internalProductLookupCache = new Map();
 const internalProductSearchCache = new Map();
 let internalProductCatalog = [];
 let internalProductCatalogRequest = null;
-const INTERNAL_PRODUCT_CACHE_KEY = 'inventario-compras:catalogo:v1';
+const INTERNAL_PRODUCT_CACHE_KEY = 'inventario-compras:catalogo:v2';
 const INVOICE_DRAFT_CACHE_KEY = 'inventario-compras:factura-borrador:v1';
 const INVOICE_FLOW_CACHE_KEY = 'inventario-compras:factura-flujo:v1';
 const LEGACY_INVOICE_CACHE_KEY = 'ingresoFacturaCache';
@@ -281,7 +281,12 @@ window.app = {
   db,
   currentUser: null,
   formatCurrency,
-  posApiRequest
+  posApiRequest,
+  inventoryCatalog: {
+    preload: preloadInternalProductCatalog,
+    get: () => internalProductCatalog,
+    rank: rankInternalProductMatches
+  }
 };
 window.clearInvoiceIntakeCache = clearInvoiceIntakeCache;
 
@@ -375,6 +380,7 @@ async function showApplication(session, profile) {
   elements.appShell.hidden = false;
   document.body.classList.toggle('mobile-capture-only', IS_MOBILE_DEVICE);
   if (IS_MOBILE_DEVICE) history.replaceState(null, '', '#cargar-factura');
+  if (!IS_MOBILE_DEVICE) preloadInternalProductCatalog();
   const restoreManualEntry = hasRestorableManualInvoice();
   if (restoreManualEntry) {
     currentPendingDocumentId = readLocalCache(INVOICE_FLOW_CACHE_KEY)?.pendingDocumentId || null;
@@ -582,15 +588,12 @@ function readCachedInternalProductCatalog() {
 }
 
 function preloadInternalProductCatalog() {
-  if (internalProductCatalog.length || internalProductCatalogRequest) return internalProductCatalogRequest;
+  if (internalProductCatalog.length) return Promise.resolve(internalProductCatalog);
+  if (internalProductCatalogRequest) return internalProductCatalogRequest;
   if (readCachedInternalProductCatalog()) return Promise.resolve(internalProductCatalog);
-  internalProductCatalogRequest = db
-    .from('ferre_inventario')
-    .select('id, codigo, producto, unidad_paquete, precio, precio_proveedor, zona')
-    .order('codigo', { ascending: true })
-    .then(({ data, error }) => {
-      if (error) throw error;
-      internalProductCatalog = data || [];
+  internalProductCatalogRequest = posApiRequest('/api/purchases/v2/inventory/catalog', { method: 'GET' })
+    .then((response) => {
+      internalProductCatalog = response?.data || [];
       internalProductCatalog.forEach((product) => internalProductLookupCache.set(product.codigo, product));
       try {
         sessionStorage.setItem(INTERNAL_PRODUCT_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), products: internalProductCatalog }));

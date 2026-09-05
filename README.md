@@ -36,11 +36,13 @@ autorizada y no contiene secretos del servidor.
 - Navegación superior con módulos independientes.
 - `Ingresar facturas`: consulta la clave/XML, vincula el proveedor por RUC y
   continúa en el formulario tradicional con proveedor y datos básicos precargados.
-- `Comparador`: módulo nativo (`js/comparador.js`). Busca un producto por el
-  backend (`GET /api/purchases/v2/inventory/search`), muestra costo y proveedor
-  actual, y calcula el ahorro y el precio de venta sugerido (38 % margen + 2 %
-  renta) frente a un costo hipotético de otro proveedor. Solo lectura; sin
-  manejadores en línea ni acceso directo a Supabase.
+- `Comparador`: módulo nativo (`js/comparador.js`). Reutiliza el catálogo interno
+  que precarga la app (`GET /api/purchases/v2/inventory/catalog`, compartido con
+  Ingresar facturas), así la búsqueda es instantánea y por palabras, no solo por
+  frase. Mientras el catálogo aún carga cae a `GET /api/purchases/v2/inventory/search`.
+  Muestra costo y proveedor actual y calcula el ahorro y el precio de venta
+  sugerido (38 % margen + 2 % renta) frente a un costo hipotético de otro
+  proveedor. Solo lectura; sin manejadores en línea ni acceso directo a Supabase.
 - `Dashboard` y `Facturas`: ocultos por ahora. Eran copias del módulo de
   Proveedores del POS y quedaron inservibles bajo la CSP estricta (arranque por
   `<script>` en línea bloqueado). Se reconstruirán como módulos nativos, uno por

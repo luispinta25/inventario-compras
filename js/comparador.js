@@ -1,21 +1,26 @@
 'use strict';
 
 // Comparador de precios: módulo nativo de Inventario y Compras.
-// Solo lectura. Los datos llegan por el backend autenticado
-// (`GET /api/purchases/v2/inventory/search`); no consulta Supabase directamente
-// ni usa manejadores en línea.
+// Solo lectura. El catálogo interno se precarga por el backend autenticado
+// (`GET /api/purchases/v2/inventory/catalog`, compartido con Ingresar facturas)
+// y se filtra en el navegador, así la búsqueda es instantánea y por palabras.
+// Mientras el catálogo aún carga, cae a `GET /api/purchases/v2/inventory/search`.
+// No consulta Supabase directamente ni usa manejadores en línea.
 (function () {
   const IVA_RATE = 0.15;
   const MARGEN = 0.38;
   const RENTA = 0.02;
-  const SEARCH_DEBOUNCE_MS = 250;
   const MIN_QUERY_LENGTH = 2;
+  const BACKEND_DEBOUNCE_MS = 200;
+  const MAX_RESULTS = 10;
 
   const money = new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' });
 
   let listenersBound = false;
-  let searchTimer = null;
-  let searchToken = 0;
+  let backendTimer = null;
+  let backendToken = 0;
+  let catalogRows = [];
+  let catalogReady = false;
   let lastResults = [];
   let selected = null;
   let withTax = true;
@@ -36,6 +41,60 @@
     return withTaxBase * (1 + MARGEN) * (1 + RENTA);
   }
 
+  function mapRow(row) {
+    return {
+      codigo: String(row.codigo ?? ''),
+      nombre: String(row.producto ?? row.nombre ?? '').trim() || 'Producto sin nombre',
+      costo: Number(row.precio_proveedor) || 0,
+      proveedor: String(row.proveedor_nombre || '').trim() || 'Sin proveedor'
+    };
+  }
+
+  // Normalización y ranking por palabras. Se usa el ranqueador compartido de
+  // `app.js` (idéntico al del backend) y, si no estuviera, esta copia mínima.
+  function normalize(value) {
+    return String(value ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLocaleLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .trim();
+  }
+
+  function localRankFallback(rows, query) {
+    const tokens = normalize(query).split(/\s+/).filter(Boolean);
+    if (!tokens.length) return [];
+    const phrase = normalize(query);
+    return rows
+      .map((row) => {
+        const searchable = normalize(`${row.codigo} ${row.producto ?? row.nombre ?? ''}`);
+        const words = new Set(searchable.split(' ').filter(Boolean));
+        const exact = tokens.filter((token) => words.has(token)).length;
+        const partial = tokens.filter((token) => searchable.includes(token)).length;
+        const score = (exact === tokens.length ? 10000 : 0) + exact * 1000 + partial * 100
+          + (searchable.includes(phrase) ? 10 : 0);
+        return { row, score };
+      })
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score || String(a.row.codigo).localeCompare(String(b.row.codigo)))
+      .slice(0, MAX_RESULTS)
+      .map(({ row }) => row);
+  }
+
+  function rankLocal(query) {
+    const shared = window.app && window.app.inventoryCatalog;
+    const ranked = shared && typeof shared.rank === 'function'
+      ? shared.rank(catalogRows, query)
+      : localRankFallback(catalogRows, query);
+    return ranked.map(mapRow);
+  }
+
+  function refreshCatalog() {
+    const shared = window.app && window.app.inventoryCatalog;
+    catalogRows = (shared && typeof shared.get === 'function' && shared.get()) || catalogRows || [];
+    catalogReady = catalogRows.length > 0;
+  }
+
   function clearResults() {
     const container = el('comparatorResults');
     if (!container) return;
@@ -51,7 +110,7 @@
     if (!results.length) {
       const empty = document.createElement('p');
       empty.className = 'comparator-empty';
-      empty.textContent = 'Sin coincidencias. Prueba con otro código o nombre.';
+      empty.textContent = 'Sin coincidencias. Prueba con otro código o palabra.';
       container.append(empty);
       container.hidden = false;
       return;
@@ -89,39 +148,47 @@
     container.hidden = false;
   }
 
-  async function runSearch(rawQuery) {
-    const query = rawQuery.trim();
-    if (query.length < MIN_QUERY_LENGTH) {
-      clearResults();
-      setStatus('');
-      return;
-    }
-
-    const token = ++searchToken;
+  async function backendSearch(query) {
+    const token = ++backendToken;
     setStatus('Buscando…');
     try {
       const response = await window.posApiRequest(
         `/api/purchases/v2/inventory/search?query=${encodeURIComponent(query)}`
       );
-      if (token !== searchToken) return;
-      lastResults = (response?.data || []).map((item) => ({
-        codigo: String(item.codigo ?? ''),
-        nombre: String(item.producto ?? item.nombre ?? '').trim() || 'Producto sin nombre',
-        costo: Number(item.precio_proveedor) || 0,
-        proveedor: String(item.proveedor_nombre || '').trim() || 'Sin proveedor'
-      }));
+      if (token !== backendToken) return;
+      lastResults = (response?.data || []).map(mapRow);
       renderResults(lastResults);
       setStatus(lastResults.length ? `${lastResults.length} resultado(s)` : '');
     } catch (error) {
-      if (token !== searchToken) return;
+      if (token !== backendToken) return;
       clearResults();
       setStatus(error.message || 'No fue posible buscar productos.');
     }
   }
 
-  function scheduleSearch(value) {
-    window.clearTimeout(searchTimer);
-    searchTimer = window.setTimeout(() => runSearch(value), SEARCH_DEBOUNCE_MS);
+  function scheduleBackendSearch(query) {
+    window.clearTimeout(backendTimer);
+    backendTimer = window.setTimeout(() => backendSearch(query), BACKEND_DEBOUNCE_MS);
+  }
+
+  function onQuery(rawValue) {
+    const query = rawValue.trim();
+    if (query.length < MIN_QUERY_LENGTH) {
+      window.clearTimeout(backendTimer);
+      backendToken++;
+      clearResults();
+      setStatus('');
+      return;
+    }
+    if (catalogReady) {
+      window.clearTimeout(backendTimer);
+      lastResults = rankLocal(query);
+      renderResults(lastResults);
+      setStatus(lastResults.length ? `${lastResults.length} resultado(s)` : '');
+    } else {
+      setStatus('Cargando catálogo…');
+      scheduleBackendSearch(query);
+    }
   }
 
   function selectByCode(codigo) {
@@ -200,16 +267,15 @@
     if (listenersBound) return;
     listenersBound = true;
 
-    el('comparatorSearch').addEventListener('input', (event) => scheduleSearch(event.target.value));
+    el('comparatorSearch').addEventListener('input', (event) => onQuery(event.target.value));
     el('comparatorSearch').addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
       event.preventDefault();
-      window.clearTimeout(searchTimer);
       const value = event.target.value.trim();
       const exact = lastResults.find((item) => item.codigo === value);
       if (exact) selectByCode(exact.codigo);
       else if (lastResults.length === 1) selectByCode(lastResults[0].codigo);
-      else runSearch(value);
+      else onQuery(value);
     });
 
     el('comparatorResults').addEventListener('click', (event) => {
@@ -240,6 +306,16 @@
     el('comparatorAnalysis').hidden = true;
     el('comparatorSearch').value = '';
     el('comparatorSearch').focus();
+
+    refreshCatalog();
+    const shared = window.app && window.app.inventoryCatalog;
+    if (shared && typeof shared.preload === 'function') {
+      shared.preload().then(() => {
+        refreshCatalog();
+        const current = el('comparatorSearch').value.trim();
+        if (current.length >= MIN_QUERY_LENGTH) onQuery(current);
+      });
+    }
   }
 
   window.initComparador = initComparador;
