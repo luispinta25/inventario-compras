@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260905.6';
+const APP_BUILD = '20260905.7';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -25,7 +25,7 @@ const elements = Object.fromEntries([
   'loadingRow', 'errorBanner', 'review', 'validationBanner', 'validationIcon',
   'validationTitle', 'validationText', 'itemsBody', 'warningsSection', 'warningsList',
   'resetButton', 'downloadButton', 'copyKeyButton', 'providerMatchState',
-  'continueEntryButton', 'providerLinkSection', 'providerLinkButton',
+  'continueEntryButton', 'saveToPendingButton', 'providerLinkSection', 'providerLinkButton',
   'invoiceFields', 'providerLinkModal', 'providerLinkCloseButton', 'providerLinkCancelButton',
   'providerLinkConfirmButton', 'providerLinkSearchInput', 'providerLinkGrid',
   'providerLinkModalStatus', 'providerLinkXmlName', 'providerLinkXmlTaxId',
@@ -35,8 +35,9 @@ const elements = Object.fromEntries([
   'stopScannerButton', 'mobileAccessKeyInput', 'mobileCaptureButton',
   'mobileCaptureStatus', 'mobileInvoiceSummary', 'mobileInvoiceState',
   'mobileInvoiceProvider', 'mobileInvoiceTaxId', 'mobileInvoiceNumber',
-  'mobileInvoiceItems', 'mobileInvoiceTotal', 'mobileLinkProviderButton',
-  'mobileScanAnotherButton', 'ocrPickCamera', 'ocrPickGallery', 'ocrKeyFileCamera',
+  'mobileInvoiceItems', 'mobileInvoiceTotal', 'mobileInvoiceItemsList', 'mobileSaveButton',
+  'mobileLinkProviderButton', 'mobileScanAnotherButton',
+  'ocrPickCamera', 'ocrPickGallery', 'ocrKeyFileCamera',
   'ocrKeyFileGallery', 'ocrCrop', 'ocrCropStage', 'ocrCropImage', 'ocrCropBand',
   'ocrCropCancel', 'ocrCropRun'
 ].map((id) => [id, document.getElementById(id)]));
@@ -932,6 +933,18 @@ function renderMobileInvoiceSummary(draft, state) {
   elements.mobileInvoiceNumber.textContent = draft.invoice.number;
   elements.mobileInvoiceItems.textContent = draft.items.length;
   elements.mobileInvoiceTotal.textContent = money(draft.totals.total);
+  elements.mobileInvoiceItemsList.replaceChildren();
+  draft.items.forEach((item) => {
+    const entry = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'mobile-invoice-item-name';
+    name.textContent = item.description || 'Sin descripción';
+    const meta = document.createElement('span');
+    meta.className = 'mobile-invoice-item-meta';
+    meta.textContent = `${number(item.quantity)} × ${money(item.unit_cost)} = ${money(item.subtotal)}`;
+    entry.append(name, meta);
+    elements.mobileInvoiceItemsList.append(entry);
+  });
 }
 
 function stopScanner() {
@@ -967,7 +980,7 @@ async function startScanner() {
         elements.mobileAccessKeyInput.value = match[0];
         updateMobileKeyState();
         stopScanner();
-        captureMobileDocument();
+        previewMobileDocument();
       }
     );
   } catch (error) {
@@ -992,13 +1005,18 @@ function resetMobileCapture() {
   providerLinkContinuation = null;
   elements.mobileAccessKeyInput.value = '';
   elements.mobileInvoiceSummary.hidden = true;
+  elements.mobileInvoiceItemsList.replaceChildren();
   elements.mobileLinkProviderButton.hidden = true;
+  elements.mobileSaveButton.hidden = true;
+  elements.mobileSaveButton.disabled = false;
   elements.mobileScanAnotherButton.hidden = true;
   setMobileStatus('');
   updateMobileKeyState();
 }
 
-async function captureMobileDocument() {
+// Paso 1: consulta el SRI y muestra el resumen con la lista de productos para
+// verificar. No guarda nada todavía.
+async function previewMobileDocument() {
   const accessKey = elements.mobileAccessKeyInput.value;
   if (!isValidAccessKey(accessKey) || mobileCaptureBusy) return;
   mobileCaptureBusy = true;
@@ -1008,30 +1026,66 @@ async function captureMobileDocument() {
   try {
     const result = await posApiRequest('/api/purchases/v2/documents/capture', {
       method: 'POST',
-      body: JSON.stringify({ access_key: accessKey })
+      body: JSON.stringify({ access_key: accessKey, preview: true })
     });
     const capture = result.data;
-    renderMobileInvoiceSummary(capture.draft, capture.requires_provider_link ? 'Proveedor pendiente de vincular' : 'XML guardado');
+    elements.mobileScanAnotherButton.hidden = false;
     if (capture.requires_provider_link) {
-      providerLinkContinuation = 'mobile-capture';
+      renderMobileInvoiceSummary(capture.draft, 'Proveedor pendiente de vincular');
+      providerLinkContinuation = 'mobile-preview';
       elements.mobileLinkProviderButton.hidden = false;
-      elements.mobileScanAnotherButton.hidden = true;
-      setMobileStatus('Vincula el proveedor antes de guardar esta factura.', 'warning');
-    } else {
-      providerLinkContinuation = null;
-      currentPendingDocumentId = null;
-      elements.mobileLinkProviderButton.hidden = true;
-      elements.mobileScanAnotherButton.hidden = false;
-      setMobileStatus(capture.duplicate
-        ? 'Esta factura ya estaba guardada; no se creó un duplicado.'
-        : 'Factura guardada correctamente en Pendientes.', 'success');
+      elements.mobileSaveButton.hidden = true;
+      setMobileStatus('Vincula el proveedor y vuelve a revisar antes de guardar.', 'warning');
+      return;
     }
+    renderMobileInvoiceSummary(capture.draft, 'Revisa el detalle y guarda');
+    providerLinkContinuation = null;
+    elements.mobileLinkProviderButton.hidden = true;
+    elements.mobileSaveButton.hidden = false;
+    elements.mobileSaveButton.disabled = false;
+    setMobileStatus('Verifica los productos contra el papel y toca Guardar en Pendientes.');
   } catch (error) {
     setMobileStatus(error.message, 'error');
   } finally {
     mobileCaptureBusy = false;
     elements.startScannerButton.disabled = false;
     updateMobileKeyState();
+  }
+}
+
+// Paso 2: guarda el XML en la cola de pendientes tras la verificación.
+async function confirmMobileDocument() {
+  const accessKey = elements.mobileAccessKeyInput.value;
+  if (!isValidAccessKey(accessKey) || mobileCaptureBusy) return;
+  mobileCaptureBusy = true;
+  elements.mobileSaveButton.disabled = true;
+  setMobileStatus('Guardando en Pendientes…', 'loading');
+  try {
+    const result = await posApiRequest('/api/purchases/v2/documents/capture', {
+      method: 'POST',
+      body: JSON.stringify({ access_key: accessKey })
+    });
+    const capture = result.data;
+    if (capture.requires_provider_link) {
+      providerLinkContinuation = 'mobile-save';
+      elements.mobileLinkProviderButton.hidden = false;
+      elements.mobileSaveButton.hidden = true;
+      setMobileStatus('Vincula el proveedor antes de guardar esta factura.', 'warning');
+      return;
+    }
+    currentPendingDocumentId = null;
+    providerLinkContinuation = null;
+    elements.mobileLinkProviderButton.hidden = true;
+    elements.mobileSaveButton.hidden = true;
+    elements.mobileScanAnotherButton.hidden = false;
+    setMobileStatus(capture.duplicate
+      ? 'Esta factura ya estaba guardada; no se creó un duplicado.'
+      : 'Factura guardada correctamente en Pendientes.', 'success');
+  } catch (error) {
+    setMobileStatus(error.message, 'error');
+    elements.mobileSaveButton.disabled = false;
+  } finally {
+    mobileCaptureBusy = false;
   }
 }
 
@@ -1201,7 +1255,8 @@ function pickOcrImage(input) {
 elements.startScannerButton.addEventListener('click', startScanner);
 elements.stopScannerButton.addEventListener('click', stopScanner);
 elements.mobileAccessKeyInput.addEventListener('input', updateMobileKeyState);
-elements.mobileCaptureButton.addEventListener('click', captureMobileDocument);
+elements.mobileCaptureButton.addEventListener('click', previewMobileDocument);
+elements.mobileSaveButton.addEventListener('click', confirmMobileDocument);
 elements.mobileLinkProviderButton.addEventListener('click', openProviderLinking);
 elements.mobileScanAnotherButton.addEventListener('click', resetMobileCapture);
 elements.ocrPickCamera.addEventListener('click', () => pickOcrImage(elements.ocrKeyFileCamera));
@@ -1668,6 +1723,7 @@ async function resolveProvider(draft) {
 
 async function renderDraft(draft) {
   currentDraft = draft;
+  elements.saveToPendingButton.disabled = true;
   const warningCount = draft.warnings.length;
   elements.validationBanner.classList.toggle('warning', !draft.consistent);
   elements.validationIcon.className = draft.consistent ? 'fa-solid fa-circle-check' : 'fa-solid fa-triangle-exclamation';
@@ -1927,19 +1983,34 @@ async function requestPreview(path, body = {}) {
   }
 }
 
-async function captureDesktopDocument() {
+// preview: solo consulta el SRI y muestra el resumen para verificar, sin
+// escribir nada. El guardado en Pendientes se hace después, con confirmación.
+async function captureDesktopDocument({ preview = false } = {}) {
   const accessKey = elements.accessKeyInput.value;
   clearError();
   setBusy(true);
   try {
     const result = await posApiRequest('/api/purchases/v2/documents/capture', {
       method: 'POST',
-      body: JSON.stringify({ access_key: accessKey })
+      body: JSON.stringify(preview ? { access_key: accessKey, preview: true } : { access_key: accessKey })
     });
     const capture = result.data;
     if (capture.requires_provider_link) {
-      providerLinkContinuation = 'desktop-capture';
+      providerLinkContinuation = preview ? 'desktop-preview' : 'desktop-capture';
       await renderDraft(capture.draft);
+      elements.saveToPendingButton.disabled = true;
+      return true;
+    }
+    if (capture.preview) {
+      providerLinkContinuation = null;
+      await renderDraft(capture.draft);
+      // El backend ya resolvió el proveedor por RUC; se respeta esa decisión.
+      if (capture.provider && !matchedProvider) {
+        matchedProvider = capture.provider;
+        setText('providerName', capture.provider.empresa);
+        setProviderMatch('matched', `Vinculado como ${capture.provider.empresa}`);
+      }
+      elements.saveToPendingButton.disabled = !matchedProvider;
       return true;
     }
     if (capture.document.status === 'REGISTRADO') {
@@ -1953,10 +2024,14 @@ async function captureDesktopDocument() {
     pendingLeaseRefreshedAt = Date.now();
     providerLinkContinuation = null;
     await renderDraft(claimed.data.datos_extraidos);
+    elements.saveToPendingButton.disabled = true;
+    setProviderMatch('matched', capture.duplicate
+      ? 'Ya estaba en Pendientes; no se duplicó'
+      : 'Guardada en Pendientes');
     await loadPendingDocuments({ silent: true });
     return true;
   } catch (error) {
-    showError(error.message || 'No fue posible consultar y guardar la factura.');
+    showError(error.message || 'No fue posible consultar la factura.');
     return false;
   } finally {
     setBusy(false);
@@ -1986,10 +2061,20 @@ elements.accessForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const key = elements.accessKeyInput.value;
   if (!isValidAccessKey(key)) return;
-  const succeeded = await captureDesktopDocument();
+  const succeeded = await captureDesktopDocument({ preview: true });
   if (succeeded) failedSriAttempts = 0;
   else if (elements.accessKeyInput.value === attemptedKey) failedSriAttempts += 1;
   updateKeyState();
+});
+elements.saveToPendingButton.addEventListener('click', async () => {
+  if (elements.saveToPendingButton.disabled) return;
+  elements.saveToPendingButton.disabled = true;
+  elements.saveToPendingButton.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Guardando';
+  try {
+    await captureDesktopDocument({ preview: false });
+  } finally {
+    elements.saveToPendingButton.innerHTML = '<i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Guardar en pendientes';
+  }
 });
 elements.clearKeyButton.addEventListener('click', resetInvoice);
 elements.sampleButton.hidden = POS_API_BASE_URL !== '';
@@ -2159,10 +2244,14 @@ async function confirmProviderLinking() {
     closeProviderLinking();
     const continuation = providerLinkContinuation;
     providerLinkContinuation = null;
-    if (continuation === 'mobile-capture') {
-      await captureMobileDocument();
+    if (continuation === 'mobile-preview') {
+      await previewMobileDocument();
+    } else if (continuation === 'mobile-save') {
+      await confirmMobileDocument();
+    } else if (continuation === 'desktop-preview') {
+      await captureDesktopDocument({ preview: true });
     } else if (continuation === 'desktop-capture') {
-      await captureDesktopDocument();
+      await captureDesktopDocument({ preview: false });
     }
   } catch (error) {
     elements.providerLinkModalStatus.textContent = error.message;

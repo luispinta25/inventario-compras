@@ -622,3 +622,11 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .ocr-crop-grip-bottom { bottom: -8px; }
 .ocr-crop-actions { display: flex; gap: 10px; margin-top: 12px; }
 .ocr-crop-actions .button { flex: 1 1 0; }
+
+/* Detalle de productos para verificar antes de guardar (captura móvil) */
+.mobile-invoice-items-title { margin: 4px 0 8px; color: #6c757e; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; }
+.mobile-invoice-items { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 8px; max-height: 320px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; }
+.mobile-invoice-items li { display: grid; gap: 3px; padding: 10px 12px; border-bottom: 1px solid #edf0f2; }
+.mobile-invoice-items li:last-child { border-bottom: 0; }
+.mobile-invoice-item-name { font-size: 13px; font-weight: 750; color: var(--ink); overflow-wrap: anywhere; }
+.mobile-invoice-item-meta { font-size: 12px; font-weight: 700; color: var(--muted); }

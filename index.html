@@ -273,7 +273,11 @@
                 <i class="fa-solid fa-download" aria-hidden="true"></i>
                 Descargar borrador
               </button>
-              <button type="button" class="button button-primary" id="continueEntryButton" disabled>
+              <button type="button" class="button button-primary" id="saveToPendingButton" disabled>
+                <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>
+                Guardar en pendientes
+              </button>
+              <button type="button" class="button button-secondary" id="continueEntryButton" disabled>
                 <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
                 Continuar ingreso
               </button>
@@ -480,13 +484,13 @@
               </div>
             </div>
             <button type="button" class="button button-primary mobile-primary-action" id="mobileCaptureButton" disabled>
-              <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>
-              Consultar y guardar
+              <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+              Consultar y revisar
             </button>
             <div class="mobile-capture-status" id="mobileCaptureStatus" role="status" aria-live="polite"></div>
           </section>
 
-          <section class="mobile-invoice-summary" id="mobileInvoiceSummary" hidden>
+          <section class="mobile-invoice-summary" id="mobileInvoiceSummary" hidden aria-labelledby="mobileInvoiceProvider">
             <span id="mobileInvoiceState"></span>
             <h2 id="mobileInvoiceProvider"></h2>
             <dl>
@@ -495,9 +499,15 @@
               <div><dt>Productos</dt><dd id="mobileInvoiceItems"></dd></div>
               <div><dt>Total</dt><dd id="mobileInvoiceTotal"></dd></div>
             </dl>
+            <p class="mobile-invoice-items-title">Detalle para verificar</p>
+            <ul class="mobile-invoice-items" id="mobileInvoiceItemsList"></ul>
             <button type="button" class="button button-primary mobile-primary-action" id="mobileLinkProviderButton" hidden>
               <i class="fa-solid fa-link" aria-hidden="true"></i>
               Vincular proveedor
+            </button>
+            <button type="button" class="button button-primary mobile-primary-action" id="mobileSaveButton" hidden>
+              <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>
+              Guardar en Pendientes
             </button>
             <button type="button" class="button button-secondary mobile-primary-action" id="mobileScanAnotherButton" hidden>
               <i class="fa-solid fa-plus" aria-hidden="true"></i>

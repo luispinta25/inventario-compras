@@ -21,8 +21,18 @@ autorizada y no contiene secretos del servidor.
   network-first para HTML, JavaScript, CSS y vistas, con caché solo como
   respaldo cuando la red no está disponible; nunca intercepta el API.
 - En teléfonos, después del inicio de sesión se fuerza el módulo exclusivo
-  `Cargar factura`: solicita permiso de cámara, escanea la clave SRI y guarda el
-  XML en la cola. Si el RUC no existe, obliga a vincular un proveedor antes.
+  `Cargar factura`: solicita permiso de cámara y escanea la clave SRI del código
+  de barras. Si el RUC no existe, obliga a vincular un proveedor antes.
+- Cuando la factura no trae código de barras legible, `Tomar foto` o `Elegir de
+  galería` abren un recuadro ajustable sobre la línea de la clave y un OCR local
+  (Tesseract.js alojado en `vendor/tesseract/`, la foto no se sube) reconstruye
+  la clave de 49 dígitos: valida el dígito verificador módulo 11 y cuadra RUC,
+  serie y secuencial contra el número de factura impreso. El escáner sigue
+  siendo la vía principal.
+- Antes de guardar cualquier factura se muestra un resumen con la lista de
+  productos para verificar; el guardado en Pendientes ocurre solo al confirmar.
+  Aplica al escaneo por código de barras, a la foto y al ingreso por PC
+  (`Consultar SRI` hace una vista previa; `Guardar en pendientes` persiste).
 - La detección de teléfono combina `navigator.userAgentData`, tokens de teléfono
   en el user agent y un respaldo físico estricto (`pointer: coarse` +
   `hover: none` + pantalla de tamaño real de teléfono). Las tablets y las

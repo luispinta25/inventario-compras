@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'ferrisoluciones-inventario-0.2.0-20260905.6';
+const CACHE_NAME = 'ferrisoluciones-inventario-0.2.0-20260905.7';
 const APP_SHELL = [
   '/',
   '/index.html',
