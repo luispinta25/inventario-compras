@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#25282c">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://api.ferrisoluciones.com https://lpsupabase.luispintasolutions.com wss://lpsupabase.luispintasolutions.com; worker-src 'self' blob:">
+  <title>Inventario y Compras | Ferrisoluciones</title>
+  <link rel="stylesheet" href="/vendor/fontawesome/css/all-6.5.2.min.css">
+  <link rel="stylesheet" href="/provider-base.css">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <section class="auth-screen" id="authScreen" aria-labelledby="loginTitle">
+    <div class="auth-brand">
+      <img src="/img/brand/ferrisoluciones.png" alt="Ferrisoluciones">
+      <p>FERRISOLUCIONES</p>
+      <h1>Inventario y Compras</h1>
+    </div>
+
+    <div class="login-panel">
+      <div class="login-heading">
+        <span class="login-icon"><i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i></span>
+        <div>
+          <p>Acceso interno</p>
+          <h2 id="loginTitle">Iniciar sesión</h2>
+        </div>
+      </div>
+
+      <form id="loginForm" novalidate>
+        <label for="emailInput">Correo</label>
+        <div class="field-wrap">
+          <i class="fa-regular fa-envelope" aria-hidden="true"></i>
+          <input id="emailInput" name="email" type="email" autocomplete="username" required>
+        </div>
+
+        <label for="passwordInput">Contraseña</label>
+        <div class="field-wrap">
+          <i class="fa-solid fa-lock" aria-hidden="true"></i>
+          <input id="passwordInput" name="password" type="password" autocomplete="current-password" required>
+          <button type="button" class="field-icon-button" id="togglePasswordButton" title="Mostrar contraseña" aria-label="Mostrar contraseña">
+            <i class="fa-regular fa-eye" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <div class="auth-error" id="authError" role="alert" hidden></div>
+        <button type="submit" class="button button-primary login-button" id="loginButton">
+          <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>
+          Iniciar sesión
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <div class="session-loader" id="sessionLoader">
+    <i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>
+    Verificando sesión
+  </div>
+
+  <div class="app-shell" id="appShell" hidden>
+    <header class="topbar">
+      <div class="topbar-brand">
+        <img src="/img/brand/ferrisoluciones.png" alt="">
+        <div>
+          <p>FERRISOLUCIONES</p>
+          <strong>Inventario y Compras</strong>
+        </div>
+      </div>
+
+      <nav class="module-nav" aria-label="Módulos de inventario y compras">
+        <a href="#ingreso-facturas" class="module-nav-item active" data-app-module="invoice-import" aria-current="page" title="Ingresar facturas">
+          <i class="fa-solid fa-file-invoice" aria-hidden="true"></i>
+          <span>Ingresar<br>facturas</span>
+        </a>
+        <a href="#dashboard" class="module-nav-item" data-app-module="provider-dashboard" title="Dashboard de proveedores">
+          <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="#facturas" class="module-nav-item" data-app-module="provider-invoices" title="Facturas registradas">
+          <i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i>
+          <span>Facturas</span>
+        </a>
+        <a href="#comparador" class="module-nav-item" data-app-module="provider-comparator" title="Comparador de precios">
+          <i class="fa-solid fa-scale-balanced" aria-hidden="true"></i>
+          <span>Comparador</span>
+        </a>
+        <a href="#producto-proveedores" class="module-nav-item" data-app-module="product-providers" title="Productos y proveedores">
+          <i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i>
+          <span>Productos y<br>proveedores</span>
+        </a>
+      </nav>
+
+      <div class="topbar-session">
+        <span class="user-avatar" id="userInitials">--</span>
+        <div class="user-copy">
+          <strong id="userName"></strong>
+          <span id="userRole"></span>
+        </div>
+        <button type="button" class="logout-button" id="logoutButton" title="Cerrar sesión" aria-label="Cerrar sesión">
+          <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>
+        </button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <section class="module-panel" id="invoiceImportPanel" data-module-panel="invoice-import">
+        <header class="app-header">
+        <div>
+          <p class="product-name">COMPRAS</p>
+          <h1>Ingreso de facturas</h1>
+        </div>
+        <div class="mode-status">
+          <span class="status-dot" aria-hidden="true"></span>
+          Flujo gradual
+        </div>
+        </header>
+
+        <main id="ingreso-facturas">
+        <section class="import-panel" aria-labelledby="importTitle">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">Consulta oficial SRI</p>
+              <h2 id="importTitle">Buscar factura</h2>
+            </div>
+            <button type="button" class="button button-secondary" id="sampleButton">
+              <i class="fa-solid fa-flask" aria-hidden="true"></i>
+              Ver demostración
+            </button>
+          </div>
+
+          <form class="access-form" id="accessForm" novalidate>
+            <label for="accessKeyInput">Clave de acceso</label>
+            <div class="access-input-row">
+              <div class="access-input-wrap">
+                <i class="fa-solid fa-barcode" aria-hidden="true"></i>
+                <input id="accessKeyInput" name="access_key" type="text" inputmode="numeric"
+                  autocomplete="off" maxlength="49" spellcheck="false"
+                  aria-describedby="accessKeyMeta" placeholder="Escanea o ingresa los 49 dígitos">
+                <button type="button" class="clear-button" id="clearKeyButton" title="Limpiar clave" aria-label="Limpiar clave" hidden>
+                  <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+              </div>
+              <button type="submit" class="button button-primary" id="fetchButton" disabled>
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                Consultar SRI
+              </button>
+              <button type="button" class="button button-secondary" id="uploadButton" hidden>
+                <i class="fa-solid fa-file-arrow-up" aria-hidden="true"></i>
+                Cargar XML
+              </button>
+              <input id="xmlFileInput" type="file" accept=".xml,text/xml,application/xml" hidden>
+            </div>
+            <div class="access-meta" id="accessKeyMeta">
+              <span id="keyStatus">Esperando clave</span>
+              <strong id="keyCount">0/49</strong>
+            </div>
+          </form>
+
+          <div class="loading-row" id="loadingRow" hidden>
+            <i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>
+            Consultando factura autorizada en el SRI
+          </div>
+          <div class="error-banner" id="errorBanner" role="alert" hidden></div>
+        </section>
+
+        <section id="review" class="review" hidden>
+          <div class="validation-banner" id="validationBanner">
+            <i id="validationIcon" class="fa-solid fa-circle-check" aria-hidden="true"></i>
+            <div>
+              <strong id="validationTitle"></strong>
+              <span id="validationText"></span>
+            </div>
+          </div>
+
+          <div class="invoice-summary">
+            <div class="supplier-block">
+              <span>Proveedor</span>
+              <h2 id="providerName"></h2>
+              <p class="provider-legal-name" id="providerLegalName"></p>
+              <p><span id="providerTaxId"></span> <span class="match-state" id="providerMatchState">Buscando proveedor</span></p>
+            </div>
+            <dl class="invoice-fields" id="invoiceFields">
+              <div><dt>Factura</dt><dd id="invoiceNumber"></dd></div>
+              <div><dt>Emisión</dt><dd id="issueDate"></dd></div>
+              <div><dt>Autorización</dt><dd id="authorizationStatus"></dd></div>
+            </dl>
+            <div class="total-block">
+              <span>Total</span>
+              <strong id="invoiceTotal"></strong>
+            </div>
+          </div>
+
+          <section class="provider-link-section" id="providerLinkSection" hidden aria-labelledby="providerLinkTitle">
+            <div>
+              <p class="section-kicker">Proveedor pendiente</p>
+              <h2 id="providerLinkTitle">Vincula el proveedor para continuar</h2>
+              <p>Esta factura contiene <strong id="providerLinkProductCount">0</strong> productos. Primero selecciona el proveedor correspondiente; después podrás revisar y vincular sus productos.</p>
+            </div>
+            <button type="button" class="button button-primary" id="providerLinkButton">
+              <i class="fa-solid fa-link" aria-hidden="true"></i>
+              Vincular proveedor
+            </button>
+          </section>
+
+          <div class="access-row" id="accessRow">
+            <div>
+              <span>Clave de acceso</span>
+              <code id="accessKey"></code>
+            </div>
+            <button type="button" class="icon-button" id="copyKeyButton" title="Copiar clave de acceso" aria-label="Copiar clave de acceso">
+              <i class="fa-regular fa-copy" aria-hidden="true"></i>
+            </button>
+          </div>
+
+          <section class="totals-strip" id="totalsStrip" aria-label="Totales del comprobante">
+            <div><span>Subtotal bruto</span><strong id="grossSubtotal"></strong></div>
+            <div><span>Descuento</span><strong id="discount"></strong></div>
+            <div><span>Subtotal neto</span><strong id="netSubtotal"></strong></div>
+            <div><span>IVA</span><strong id="tax"></strong></div>
+            <div><span>Propina</span><strong id="tip"></strong></div>
+          </section>
+
+          <section class="items-section" id="itemsSection" aria-labelledby="itemsTitle">
+            <div class="section-heading compact">
+              <div>
+                <p class="section-kicker">Detalle del XML</p>
+                <h2 id="itemsTitle">Productos <span id="itemCount"></span></h2>
+              </div>
+              <div class="pending-count"><span id="pendingCount"></span> sin vincular</div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Línea</th>
+                    <th>Código proveedor</th>
+                    <th>Descripción original</th>
+                    <th class="number">Cantidad</th>
+                    <th class="number">Costo</th>
+                    <th class="number">Descuento</th>
+                    <th class="number">IVA</th>
+                    <th class="number">Subtotal</th>
+                    <th>SKU interno</th>
+                  </tr>
+                </thead>
+                <tbody id="itemsBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="warnings-section" id="warningsSection" hidden>
+            <h2>Revisiones contables</h2>
+            <ul id="warningsList"></ul>
+          </section>
+
+          <footer class="review-actions">
+            <button type="button" class="button button-secondary" id="resetButton">
+              <i class="fa-solid fa-arrow-rotate-left" aria-hidden="true"></i>
+              Otra factura
+            </button>
+            <div>
+              <button type="button" class="button button-secondary" id="downloadButton">
+                <i class="fa-solid fa-download" aria-hidden="true"></i>
+                Descargar borrador
+              </button>
+              <button type="button" class="button button-primary" id="continueEntryButton" disabled>
+                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                Continuar ingreso
+              </button>
+            </div>
+          </footer>
+        </section>
+        </main>
+      </section>
+
+      <section class="module-panel provider-module-panel" id="invoiceManagementPanel" data-module-panel="providers" hidden>
+        <div class="module-loading" id="providerModuleLoading">
+          <i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>
+          Cargando gestión de facturas
+        </div>
+        <div id="providerModuleContainer"></div>
+      </section>
+
+      <section class="module-panel product-provider-panel" data-module-panel="product-providers" hidden aria-labelledby="productProvidersTitle">
+        <header class="app-header">
+          <div>
+            <p class="product-name">CATÁLOGO DE COMPRAS</p>
+            <h1 id="productProvidersTitle">Productos y proveedores</h1>
+          </div>
+          <div class="mode-status">
+            <span class="status-dot" aria-hidden="true"></span>
+            Consulta inicial
+          </div>
+        </header>
+
+        <main class="product-provider-workspace">
+          <section class="product-provider-toolbar" aria-label="Buscar productos">
+            <form id="productProviderSearchForm" class="product-provider-search">
+              <label for="productProviderSearch">Buscar por SKU o nombre</label>
+              <div>
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <input id="productProviderSearch" type="search" maxlength="100" autocomplete="off" placeholder="Ej.: AMARRA-001 o amarra">
+              </div>
+            </form>
+            <button type="button" class="button button-secondary product-provider-refresh" id="productProviderRefresh" title="Actualizar resultados" aria-label="Actualizar resultados">
+              <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+            </button>
+          </section>
+
+          <p class="product-provider-summary" id="productProviderSummary" aria-live="polite">Carga pendiente.</p>
+          <div class="product-provider-results" id="productProviderResults" aria-live="polite"></div>
+        </main>
+      </section>
+    </div>
+  </div>
+
+  <div class="provider-link-modal" id="providerLinkModal" hidden>
+    <section class="provider-link-dialog" role="dialog" aria-modal="true" aria-labelledby="providerLinkDialogTitle">
+      <header>
+        <div>
+          <p class="section-kicker">Proveedor del XML</p>
+          <h2 id="providerLinkDialogTitle">Selecciona el proveedor correspondiente</h2>
+        </div>
+        <button type="button" class="icon-button" id="providerLinkCloseButton" title="Cerrar" aria-label="Cerrar">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+      </header>
+
+      <div class="provider-link-xml-summary">
+        <strong id="providerLinkXmlName"></strong>
+        <span id="providerLinkXmlTaxId"></span>
+      </div>
+
+      <label class="provider-link-search" for="providerLinkSearchInput">
+        <span>Buscar proveedor</span>
+        <div>
+          <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+          <input id="providerLinkSearchInput" type="search" maxlength="100" autocomplete="off" placeholder="Nombre, código o razón social">
+        </div>
+      </label>
+
+      <p class="provider-link-modal-status" id="providerLinkModalStatus" aria-live="polite"></p>
+      <div class="provider-link-grid" id="providerLinkGrid" aria-live="polite"></div>
+
+      <footer>
+        <button type="button" class="button button-secondary" id="providerLinkCancelButton">Cancelar</button>
+        <button type="button" class="button button-primary" id="providerLinkConfirmButton" disabled>
+          <i class="fa-solid fa-link" aria-hidden="true"></i>
+          Vincular
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <script src="/vendor/supabase/supabase-2.45.4.min.js"></script>
+  <script src="/vendor/jspdf/jspdf-2.5.1.umd.min.js"></script>
+  <script src="/vendor/jspdf/autotable-3.5.29.min.js"></script>
+  <script src="/app.js" defer></script>
+</body>
+</html>

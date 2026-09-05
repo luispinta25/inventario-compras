@@ -1,0 +1,1288 @@
+<!-- =====================================================
+    COMPARADOR DE PRECIOS - Ferrisoluciones
+    Descripción: Herramienta para comparar precios de proveedores
+    Versión: 2.0 - Supabase + LocalStorage Cache
+    ===================================================== -->
+
+<style>
+    /* Fix para que no tape el header */
+    .comparador-wrapper {
+        padding-top: 80px;
+        min-height: 100vh;
+        background: #f5f7fa;
+    }
+
+    .comparador-container {
+        padding: 30px;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .comparador-header {
+        background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+        border-radius: 15px;
+        padding: 40px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .comparador-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #d4a017 0%, #e5b429 100%);
+    }
+
+    .comparador-title {
+        color: #d4a017;
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    
+    .comparador-title i {
+        font-size: 2.8rem;
+        filter: drop-shadow(0 4px 6px rgba(212, 160, 23, 0.4));
+    }
+
+    .comparador-subtitle {
+        color: #b8b8b8;
+        font-size: 1.1rem;
+        margin-left: 65px;
+    }
+
+    .btn-volver {
+        background: linear-gradient(135deg, #d4a017 0%, #b8860b 100%);
+        color: white;
+        border: none;
+        padding: 12px 25px;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(212, 160, 23, 0.3);
+    }
+
+    .btn-volver:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(212, 160, 23, 0.4);
+        background: linear-gradient(135deg, #e0b030 0%, #c4901a 100%);
+    }
+
+    .btn-volver:active {
+        transform: translateY(0);
+    }
+
+    .search-section {
+        background: white;
+        border-radius: 15px;
+        padding: 30px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+        margin-bottom: 30px;
+        border: 1px solid #e8e8e8;
+    }
+
+    .tax-options {
+        display: flex;
+        gap: 20px;
+        justify-content: flex-end;
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #f0f0f0;
+    }
+
+    .tax-option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        padding: 8px 16px;
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+
+    .tax-option:hover {
+        background: #f8f8f8;
+    }
+
+    .tax-option input[type="radio"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        accent-color: #d4a017;
+    }
+
+    .tax-option label {
+        cursor: pointer;
+        font-weight: 500;
+        color: #333;
+    }
+
+    .search-box {
+        position: relative;
+    }
+
+    .search-box label {
+        display: block;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 10px;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 15px 50px 15px 20px;
+        font-size: 1rem;
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        transition: all 0.3s;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: #d4a017;
+        box-shadow: 0 0 0 3px rgba(212, 160, 23, 0.1);
+    }
+
+    .search-icon {
+        position: absolute;
+        right: 18px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #999;
+        font-size: 1.2rem;
+        pointer-events: none;
+    }
+
+    .search-results {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+        margin-top: 20px;
+        overflow: hidden;
+        max-height: 550px;
+        overflow-y: auto;
+        border: 2px solid #f0f0f0;
+        animation: slideDown 0.3s ease;
+    }
+    
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .search-results.hidden {
+        display: none;
+    }
+    
+    .search-results::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    .search-results::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+    
+    .search-results::-webkit-scrollbar-thumb {
+        background: #d4a017;
+        border-radius: 4px;
+    }
+    
+    .search-results::-webkit-scrollbar-thumb:hover {
+        background: #b8860b;
+    }
+
+    .result-item {
+        padding: 20px 25px;
+        border-bottom: 1px solid #f0f0f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        position: relative;
+    }
+    
+    .result-item::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: #d4a017;
+        transform: scaleY(0);
+        transition: transform 0.2s ease;
+    }
+
+    .result-item:last-child {
+        border-bottom: none;
+    }
+
+    .result-item:hover {
+        background: linear-gradient(90deg, #fef9e7 0%, #ffffff 100%);
+        transform: translateX(5px);
+    }
+    
+    .result-item:hover::before {
+        transform: scaleY(1);
+    }
+
+    .result-info h4 {
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: #2c2c2c;
+        margin-bottom: 8px;
+    }
+
+    .result-code {
+        font-size: 0.9rem;
+        color: #666;
+        font-family: 'Courier New', monospace;
+        background: #f5f5f5;
+        padding: 3px 8px;
+        border-radius: 4px;
+        display: inline-block;
+        margin-top: 5px;
+    }
+
+    .result-provider {
+        font-size: 0.95rem;
+        color: #d4a017;
+        font-weight: 600;
+        margin-top: 8px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .result-provider i {
+        font-size: 0.8rem;
+    }
+
+    .result-select-btn {
+        padding: 12px 24px;
+        background: linear-gradient(135deg, #d4a017 0%, #e5b429 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 4px 12px rgba(212, 160, 23, 0.3);
+    }
+
+    .result-select-btn:hover {
+        background: linear-gradient(135deg, #b8860b 0%, #d4a017 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(212, 160, 23, 0.4);
+    }
+    
+    .result-select-btn:active {
+        transform: translateY(0);
+    }
+
+    .comparison-section {
+        background: white;
+        border-radius: 15px;
+        padding: 35px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+        margin-top: 30px;
+        border: 1px solid #e8e8e8;
+        animation: fadeIn 0.4s ease;
+    }
+    
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .comparison-section.hidden {
+        display: none;
+    }
+
+    .comparison-title {
+        font-size: 1.7rem;
+        font-weight: 700;
+        color: #2c2c2c;
+        margin-bottom: 30px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 20px;
+        border-bottom: 3px solid #f0f0f0;
+    }
+    
+    .comparison-title i {
+        color: #d4a017;
+        font-size: 1.8rem;
+    }
+
+    .comparison-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 35px;
+    }
+
+    .comparison-card {
+        background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%);
+        border-radius: 15px;
+        padding: 30px;
+        border: 2px solid #f0f0f0;
+        transition: all 0.3s ease;
+    }
+    
+    .comparison-card:hover {
+        border-color: #d4a017;
+        box-shadow: 0 8px 25px rgba(212, 160, 23, 0.15);
+        transform: translateY(-5px);
+    }
+
+    .comparison-card h3 {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #2c2c2c;
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #e0e0e0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .comparison-card h3 i {
+        color: #d4a017;
+    }
+
+    .info-row {
+        margin-bottom: 20px;
+    }
+
+    .info-label {
+        display: block;
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-bottom: 8px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .info-value {
+        font-size: 1.15rem;
+        color: #2c2c2c;
+        font-weight: 700;
+        padding: 10px 15px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+        border-radius: 8px;
+        border-left: 4px solid #d4a017;
+    }
+
+    .price-highlight {
+        font-size: 2.2rem;
+        color: #d4a017;
+        font-weight: 700;
+        text-shadow: 2px 2px 4px rgba(212, 160, 23, 0.2);
+        padding: 15px;
+        background: linear-gradient(135deg, #fff9e6 0%, #ffffff 100%);
+        border-radius: 10px;
+        border: 2px solid rgba(212, 160, 23, 0.2);
+        text-align: center;
+        margin-top: 10px;
+    }
+
+    .new-price-input {
+        width: 100%;
+        padding: 18px 20px;
+        font-size: 1.4rem;
+        border: 3px solid #e0e0e0;
+        border-radius: 12px;
+        font-weight: 700;
+        transition: all 0.3s ease;
+        background: white;
+        color: #2c2c2c;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .new-price-input:focus {
+        outline: none;
+        border-color: #d4a017;
+        box-shadow: 0 0 0 5px rgba(212, 160, 23, 0.15), 0 5px 15px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+    
+    .new-price-input:hover {
+        border-color: #c4901a;
+    }
+    
+    .new-price-input::placeholder {
+        color: #adb5bd;
+        opacity: 1;
+    }
+
+    .analysis-box {
+        border-radius: 15px;
+        padding: 30px;
+        margin-top: 25px;
+        text-align: center;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        animation: scaleIn 0.3s ease;
+    }
+    
+    @keyframes scaleIn {
+        from {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    .analysis-box.hidden {
+        display: none;
+    }
+
+    .analysis-box.success {
+        background: linear-gradient(135deg, #28a745 0%, #34ce57 100%);
+        color: white;
+    }
+
+    .analysis-box.warning {
+        background: linear-gradient(135deg, #dc3545 0%, #e74c3c 100%);
+        color: white;
+    }
+
+    .analysis-box.neutral {
+        background: linear-gradient(135deg, #6c757d 0%, #868e96 100%);
+        color: white;
+    }
+
+    .analysis-message {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 25px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        letter-spacing: 1px;
+    }
+
+    .price-comparison-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 25px;
+        border-radius: 12px;
+        margin-bottom: 25px;
+        backdrop-filter: blur(10px);
+    }
+
+    .price-box {
+        text-align: center;
+        padding: 15px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+        transition: all 0.2s ease;
+    }
+    
+    .price-box:hover {
+        background: rgba(255, 255, 255, 0.25);
+        transform: translateY(-3px);
+    }
+
+    .price-box-label {
+        font-size: 0.95rem;
+        margin-bottom: 10px;
+        opacity: 0.95;
+        font-weight: 500;
+    }
+
+    .price-box-value {
+        font-size: 2rem;
+        font-weight: 700;
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    .selling-prices {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 12px;
+        padding: 25px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .selling-prices h4 {
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: #2c2c2c;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+    }
+    
+    .selling-prices h4 i {
+        color: #d4a017;
+    }
+
+    .selling-comparison {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    .selling-item {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        border: 2px solid #e9ecef;
+        transition: all 0.2s ease;
+    }
+    
+    .selling-item:hover {
+        border-color: #d4a017;
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(212, 160, 23, 0.2);
+    }
+
+    .selling-label {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-bottom: 12px;
+        font-weight: 500;
+    }
+
+    .selling-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .selling-value.current {
+        color: #d4a017;
+    }
+
+    .selling-value.better {
+        color: #28a745;
+    }
+
+    .selling-value.worse {
+        color: #dc3545;
+    }
+
+    .loading-spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(212, 160, 23, 0.3);
+        border-radius: 50%;
+        border-top-color: #d4a017;
+        animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #999;
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 20px;
+        opacity: 0.5;
+    }
+
+    .empty-state h3 {
+        font-size: 1.3rem;
+        margin-bottom: 10px;
+    }
+
+    .empty-state p {
+        font-size: 1rem;
+    }
+
+    /* RESPONSIVE DESIGN */
+    @media (max-width: 1200px) {
+        .comparison-grid {
+            gap: 25px;
+        }
+        
+        .comparador-title {
+            font-size: 2rem;
+        }
+    }
+
+    @media (max-width: 992px) {
+        .comparison-grid {
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+        
+        .price-comparison-row {
+            gap: 15px;
+        }
+        
+        .selling-comparison {
+            gap: 15px;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .comparador-wrapper {
+            padding: 70px 15px 30px;
+        }
+        
+        .comparador-header {
+            padding: 25px 20px;
+        }
+        
+        .comparador-title {
+            font-size: 1.4rem;
+        }
+        
+        .comparador-title i {
+            font-size: 1.6rem;
+        }
+        
+        .btn-volver {
+            padding: 10px 20px;
+            font-size: 0.9rem;
+        }
+        
+        .comparador-subtitle {
+            font-size: 0.95rem;
+        }
+        
+        .search-section, .comparison-section {
+            padding: 25px 20px;
+        }
+        
+        .comparison-card {
+            padding: 20px;
+        }
+        
+        .comparison-title {
+            font-size: 1.4rem;
+        }
+        
+        .price-highlight {
+            font-size: 1.8rem;
+        }
+        
+        .new-price-input {
+            font-size: 1.2rem;
+            padding: 15px;
+        }
+        
+        .analysis-message {
+            font-size: 1.6rem;
+        }
+    }
+
+    @media (max-width: 576px) {
+        .comparador-title {
+            font-size: 1.5rem;
+        }
+        
+        .tax-options {
+            flex-direction: column;
+            gap: 15px;
+            align-items: stretch;
+        }
+        
+        .tax-option {
+            justify-content: center;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+        }
+        
+        .tax-option input[type="radio"]:checked + span {
+            font-weight: 700;
+        }
+        
+        .price-comparison-row {
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+        
+        .selling-comparison {
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+        
+        .result-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        
+        .result-code {
+            font-size: 0.85rem;
+        }
+        
+        .result-price {
+            font-size: 1.3rem;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .comparison-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .selling-comparison {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="comparador-wrapper">
+<div class="comparador-container">
+    <!-- Header -->
+    <div class="comparador-header">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h1 class="comparador-title">
+                <i class="fas fa-balance-scale"></i>
+                Comparador de Precios
+            </h1>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="window.refrescarDatos()" class="btn-volver" style="background: linear-gradient(135deg, #6c757d 0%, #495057 100%);" title="Actualizar datos desde el servidor">
+                    <i class="fas fa-sync-alt"></i>
+                    Actualizar
+                </button>
+                <button onclick="window.volverAProveedores()" class="btn-volver">
+                    <i class="fas fa-arrow-left"></i>
+                    Volver
+                </button>
+            </div>
+        </div>
+        <p class="comparador-subtitle">Compara precios de proveedores y calcula tu margen de ganancia en tiempo real</p>
+    </div>
+
+    <!-- Búsqueda -->
+    <div class="search-section">
+        <div class="tax-options">
+            <label class="tax-option">
+                <input type="radio" name="showTax" value="true" checked>
+                <span>Con IVA (15%)</span>
+            </label>
+            <label class="tax-option">
+                <input type="radio" name="showTax" value="false">
+                <span>Sin IVA</span>
+            </label>
+        </div>
+
+        <div class="search-box">
+            <label for="searchInput">Buscar producto</label>
+            <input type="text" id="searchInput" class="search-input" 
+                   placeholder="Buscar por código o nombre del producto...">
+            <i class="fas fa-search search-icon"></i>
+        </div>
+
+        <!-- Resultados de búsqueda -->
+        <div id="searchResults" class="search-results hidden">
+            <!-- Se llenará dinámicamente -->
+        </div>
+    </div>
+
+    <!-- Comparación de precios -->
+    <div id="comparisonSection" class="comparison-section hidden">
+        <h2 class="comparison-title">
+            <i class="fas fa-chart-line"></i>
+            Análisis de Precios
+        </h2>
+
+        <div class="comparison-grid">
+            <!-- Información actual -->
+            <div class="comparison-card">
+                <h3><i class="fas fa-info-circle"></i> Información Actual</h3>
+                
+                <div class="info-row">
+                    <span class="info-label">Código del Producto</span>
+                    <div class="info-value" id="currentCode">-</div>
+                </div>
+
+                <div class="info-row">
+                    <span class="info-label">Nombre del Producto</span>
+                    <div class="info-value" id="currentName">-</div>
+                </div>
+
+                <div class="info-row">
+                    <span class="info-label">Proveedor Actual</span>
+                    <div class="info-value" id="currentProvider">
+                        <i class="fas fa-truck" style="color: #d4a017; margin-right: 8px;"></i>
+                        <span id="currentProviderName">-</span>
+                    </div>
+                </div>
+
+                <div class="info-row">
+                    <span class="info-label">Precio de Costo Actual</span>
+                    <div class="price-highlight" id="currentPrice">$0.00</div>
+                </div>
+            </div>
+
+            <!-- Nuevo precio -->
+            <div class="comparison-card">
+                <h3><i class="fas fa-dollar-sign"></i> Nuevo Precio</h3>
+                
+                <div class="info-row">
+                    <label for="newPrice" class="info-label">Precio del nuevo proveedor ($)</label>
+                    <input type="number" id="newPrice" class="new-price-input" 
+                           placeholder="0.00" step="0.01" min="0">
+                </div>
+
+                <!-- Análisis -->
+                <div id="priceAnalysis" class="analysis-box hidden">
+                    <div class="analysis-message" id="analysisMessage">¡AHORRO!</div>
+                    
+                    <div class="price-comparison-row">
+                        <div class="price-box">
+                            <div class="price-box-label">Precio actual</div>
+                            <div class="price-box-value" id="currentPriceDisplay">$0.00</div>
+                        </div>
+                        <div class="price-box">
+                            <div class="price-box-label">Precio nuevo</div>
+                            <div class="price-box-value" id="newPriceDisplay">$0.00</div>
+                        </div>
+                    </div>
+
+                    <div class="selling-prices">
+                        <h4><i class="fas fa-tag"></i> Precios de Venta Sugeridos</h4>
+                        <div class="selling-comparison">
+                            <div class="selling-item">
+                                <div class="selling-label">Precio de venta actual</div>
+                                <div class="selling-value current" id="currentSellingPrice">$0.00</div>
+                            </div>
+                            <div class="selling-item">
+                                <div class="selling-label">Precio de venta nuevo</div>
+                                <div class="selling-value" id="newSellingPrice">$0.00</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+(function() {
+    // =====================================================
+    // VARIABLES GLOBALES
+    // =====================================================
+    let productos = [];
+    let proveedores = {}; // Mapa: id (UUID) -> empresa
+    let productoActual = null;
+    let mostrarConIVA = true;
+
+    // =====================================================
+    // CACHE MANAGEMENT - Usar un cache específico para el comparador para evitar conflictos
+    // =====================================================
+    function obtenerProductosDeCache() {
+        try {
+            const cacheData = localStorage.getItem('comparador_inventario_cache');
+            if (!cacheData) return null;
+            
+            const cache = JSON.parse(cacheData);
+            const now = Date.now();
+            const CACHE_DURATION = 60 * 60 * 1000; // 1 hora
+            
+            if (now - cache.timestamp < CACHE_DURATION) {
+                console.log('✅ Productos cargados desde caché específico', cache.data.length);
+                return cache.data;
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Error leyendo caché:', error);
+            return null;
+        }
+    }
+
+    // =====================================================
+    // INICIALIZACIÓN
+    // =====================================================
+    async function initComparador() {
+        console.log('🚀 Comparador: Iniciando...');
+        mostrarCargando(true);
+        await cargarProductos();
+        console.log('📦 Productos cargados:', productos.length);
+        configurarEventListeners();
+        console.log('🎧 Event listeners configurados');
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.focus();
+            console.log('✅ Input de búsqueda enfocado');
+        } else {
+            console.error('❌ No se encontró el input de búsqueda');
+        }
+        mostrarCargando(false);
+        console.log('✅ Comparador inicializado correctamente');
+    }
+
+    function mostrarCargando(mostrar) {
+        const searchInput = document.getElementById('searchInput');
+        if (mostrar) {
+            searchInput.placeholder = 'Cargando productos...';
+            searchInput.disabled = true;
+        } else {
+            searchInput.placeholder = 'Buscar por código o nombre del producto...';
+            searchInput.disabled = false;
+        }
+    }
+
+    // =====================================================
+    // CARGA DE DATOS
+    // =====================================================
+    async function cargarProveedores() {
+        try {
+            const db = window.app.db;
+            const { data, error } = await db
+                .from('ferre_proveedores')
+                .select('id, codigo, empresa');
+            
+            if (error) throw error;
+            
+            // Crear mapa id (UUID) -> empresa
+            proveedores = {};
+            data.forEach(p => {
+                proveedores[p.id] = p.empresa;
+            });
+            
+            console.log(`✅ ${data.length} proveedores cargados (mapa por UUID)`);
+        } catch (error) {
+            console.error('Error cargando proveedores:', error);
+        }
+    }
+
+    async function cargarProductos() {
+        try {
+            // Intentar cargar desde caché primero
+            const cachedData = obtenerProductosDeCache();
+            
+            if (cachedData) {
+                productos = cachedData.map(item => ({
+                    codigo: item.codigo,
+                    nombre: item.producto,
+                    precio: parseFloat(item.precio_proveedor) || 0,
+                    proveedor_id: item.proveedor_id || ''
+                }));
+                console.log(`✅ ${productos.length} productos cargados desde caché para comparación`);
+                await cargarProveedores();
+                return;
+            }
+
+            // Si no hay caché, cargar de Supabase
+            const db = window.app.db;
+            
+            const { data, error } = await db
+                .from('ferre_inventario')
+                .select('codigo, producto, precio_proveedor, proveedor_id')
+                .order('producto', { ascending: true });
+
+            if (error) throw error;
+
+            productos = data.map(item => ({
+                codigo: item.codigo,
+                nombre: item.producto,
+                precio: parseFloat(item.precio_proveedor) || 0,
+                proveedor_id: item.proveedor_id || ''
+            }));
+
+            // Guardar en caché específico del comparador para evitar que otros módulos lo sobreescriban
+            localStorage.setItem('comparador_inventario_cache', JSON.stringify({
+                data: data,
+                timestamp: Date.now()
+            }));
+
+            await cargarProveedores();
+
+            console.log(`✅ ${productos.length} productos cargados desde Supabase`);
+        } catch (error) {
+            console.error('Error cargando productos:', error);
+            window.app?.showToast?.('Error al cargar productos', 'error', 3000);
+            productos = [];
+        }
+    }
+
+    // =====================================================
+    // EVENT LISTENERS
+    // =====================================================
+    function configurarEventListeners() {
+        // Radio buttons de IVA
+        document.querySelectorAll('input[name="showTax"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                mostrarConIVA = this.value === 'true';
+                
+                // Si hay un producto seleccionado, actualizar su visualización
+                if (productoActual) {
+                    seleccionarProducto(productoActual);
+                }
+                
+                // Si hay resultados de búsqueda visibles, actualizarlos
+                const resultsContainer = document.getElementById('searchResults');
+                if (!resultsContainer.classList.contains('hidden')) {
+                    const searchInput = document.getElementById('searchInput');
+                    const query = searchInput.value.trim().toLowerCase();
+                    if (query && query.length >= 2) {
+                        const resultados = productos.filter(p =>
+                            p.codigo.toLowerCase().includes(query) ||
+                            p.nombre.toLowerCase().includes(query)
+                        ).slice(0, 15);
+                        mostrarResultados(resultados);
+                    }
+                }
+            });
+        });
+
+        // Búsqueda
+        const searchInput = document.getElementById('searchInput');
+        searchInput.addEventListener('input', buscarProductos);
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                buscarProductoExacto();
+            }
+        });
+
+        // Nuevo precio
+        document.getElementById('newPrice').addEventListener('input', actualizarComparacion);
+    }
+
+    // =====================================================
+    // BÚSQUEDA
+    // =====================================================
+    function buscarProductos(e) {
+        const query = e.target.value.trim().toLowerCase();
+        const resultsContainer = document.getElementById('searchResults');
+
+        console.log('🔍 Buscando:', query, '| Total productos:', productos.length);
+
+        if (!query || query.length < 2) {
+            resultsContainer.classList.add('hidden');
+            return;
+        }
+
+        const resultados = productos.filter(p =>
+            p.codigo.toLowerCase().includes(query) ||
+            p.nombre.toLowerCase().includes(query)
+        ).slice(0, 15);
+
+        console.log('✅ Resultados encontrados:', resultados.length);
+        mostrarResultados(resultados);
+    }
+
+    function buscarProductoExacto() {
+        const query = document.getElementById('searchInput').value.trim();
+        
+        // Si es código numérico, buscar exacto
+        if (/^\d+$/.test(query)) {
+            const producto = productos.find(p => p.codigo === query);
+            if (producto) {
+                seleccionarProducto(producto);
+                document.getElementById('searchInput').value = '';
+                return;
+            }
+        }
+
+        // Buscar por nombre exacto
+        const productoNombre = productos.find(p => 
+            p.nombre.toLowerCase() === query.toLowerCase()
+        );
+        
+        if (productoNombre) {
+            seleccionarProducto(productoNombre);
+            document.getElementById('searchInput').value = '';
+            return;
+        }
+
+        window.app?.showToast?.('Producto no encontrado', 'warning', 2000);
+    }
+
+    function mostrarResultados(resultados) {
+        const container = document.getElementById('searchResults');
+        
+        if (resultados.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-search"></i>
+                    <h3>No se encontraron resultados</h3>
+                    <p>Intenta con otro código o nombre</p>
+                </div>
+            `;
+            container.classList.remove('hidden');
+            return;
+        }
+
+        container.innerHTML = resultados.map(producto => {
+            const precioMostrar = mostrarConIVA ? producto.precio * 1.15 : producto.precio;
+            const nombreProveedor = proveedores[producto.proveedor_id] || 'Sin proveedor';
+            return `
+            <div class="result-item" onclick="window.comparadorSeleccionarProducto('${producto.codigo}')">
+                <div class="result-info">
+                    <h4>${producto.nombre}</h4>
+                    <div class="result-code">Código: ${producto.codigo}</div>
+                    <div class="result-provider" style="color: #666; font-size: 0.9rem; margin-top: 5px;">
+                        <i class="fas fa-truck" style="color: #d4a017;"></i> ${nombreProveedor}
+                    </div>
+                    <div class="result-provider" style="margin-top: 5px;">
+                        <strong>Precio ${mostrarConIVA ? 'con IVA' : 'sin IVA'}:</strong> ${formatearMoneda(precioMostrar)}
+                    </div>
+                </div>
+                <button class="result-select-btn">
+                    <i class="fas fa-arrow-right"></i>
+                    Seleccionar
+                </button>
+            </div>
+            `;
+        }).join('');
+
+        container.classList.remove('hidden');
+    }
+
+    // =====================================================
+    // SELECCIÓN Y COMPARACIÓN
+    // =====================================================
+    function seleccionarProducto(producto) {
+        productoActual = producto;
+        const precioConIVA = mostrarConIVA ? (producto.precio * 1.15) : producto.precio;
+        const nombreProveedor = proveedores[producto.proveedor_id] || 'Sin proveedor';
+
+        document.getElementById('currentCode').textContent = producto.codigo;
+        document.getElementById('currentName').textContent = producto.nombre;
+        document.getElementById('currentProviderName').textContent = nombreProveedor;
+        document.getElementById('currentPrice').textContent = formatearMoneda(precioConIVA);
+
+        // Ocultar resultados y mostrar comparación
+        document.getElementById('searchResults').classList.add('hidden');
+        document.getElementById('comparisonSection').classList.remove('hidden');
+        
+        // Limpiar inputs
+        document.getElementById('newPrice').value = '';
+        document.getElementById('priceAnalysis').classList.add('hidden');
+        
+        // Focus en nuevo precio
+        document.getElementById('newPrice').focus();
+    }
+
+    function actualizarComparacion() {
+        const nuevoPrecioInput = parseFloat(document.getElementById('newPrice').value);
+        
+        if (!productoActual || isNaN(nuevoPrecioInput) || nuevoPrecioInput <= 0) {
+            document.getElementById('priceAnalysis').classList.add('hidden');
+            return;
+        }
+
+        const precioActual = mostrarConIVA ? (productoActual.precio * 1.15) : productoActual.precio;
+        const diferencia = ((nuevoPrecioInput - precioActual) / precioActual) * 100;
+
+        // Determinar tipo de comparación
+        let mensaje, tipoAnalisis;
+        if (nuevoPrecioInput < precioActual) {
+            mensaje = `¡AHORRO DEL ${Math.abs(diferencia).toFixed(1)}%!`;
+            tipoAnalisis = 'success';
+        } else if (nuevoPrecioInput > precioActual) {
+            mensaje = `¡MÁS CARO POR ${diferencia.toFixed(1)}%!`;
+            tipoAnalisis = 'warning';
+        } else {
+            mensaje = '¡MISMO PRECIO!';
+            tipoAnalisis = 'neutral';
+        }
+
+        // Actualizar análisis
+        const analysisBox = document.getElementById('priceAnalysis');
+        analysisBox.className = `analysis-box ${tipoAnalisis}`;
+        document.getElementById('analysisMessage').textContent = mensaje;
+        document.getElementById('currentPriceDisplay').textContent = formatearMoneda(precioActual);
+        document.getElementById('newPriceDisplay').textContent = formatearMoneda(nuevoPrecioInput);
+
+        // Calcular precios de venta (38% ganancia + 2% impuesto a la renta)
+        const precioActualBase = mostrarConIVA ? precioActual : (precioActual * 1.15);
+        const nuevoPrecioBase = mostrarConIVA ? nuevoPrecioInput : (nuevoPrecioInput * 1.15);
+        
+        const precioVentaActual = precioActualBase * 1.38 * 1.02;
+        const precioVentaNuevo = nuevoPrecioBase * 1.38 * 1.02;
+
+        document.getElementById('currentSellingPrice').textContent = formatearMoneda(precioVentaActual);
+        
+        const newSellingElement = document.getElementById('newSellingPrice');
+        newSellingElement.textContent = formatearMoneda(precioVentaNuevo);
+        newSellingElement.className = 'selling-value ' + (precioVentaNuevo < precioVentaActual ? 'better' : 'worse');
+
+        analysisBox.classList.remove('hidden');
+    }
+
+    // =====================================================
+    // UTILIDADES
+    // =====================================================
+    function formatearMoneda(monto) {
+        return new Intl.NumberFormat('es-EC', {
+            style: 'currency',
+            currency: 'USD'
+        }).format(monto);
+    }
+
+    // =====================================================
+    // EXPORTAR FUNCIONES GLOBALES
+    // =====================================================
+    window.initComparador = initComparador;
+    window.comparadorSeleccionarProducto = function(codigo) {
+        const producto = productos.find(p => p.codigo === codigo);
+        if (producto) {
+            seleccionarProducto(producto);
+        }
+    };
+    window.refrescarDatos = async function() {
+        console.log('🔄 Refrescando datos del comparador...');
+        localStorage.removeItem('comparador_inventario_cache');
+        await initComparador();
+        window.app?.showToast?.('Datos actualizados correctamente', 'success', 2000);
+    };
+
+    window.volverAProveedores = function() {
+        // Cambiar a modo facturas (primer tab)
+        if (window.cambiarModoProveedor) {
+            window.cambiarModoProveedor('facturas');
+        }
+    };
+
+    // NO auto-inicializar - se llama manualmente desde proveedores.html
+    console.log('🔧 Comparador: Script cargado, esperando llamada manual a initComparador()');
+
+})();
+</script>

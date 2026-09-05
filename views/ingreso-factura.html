@@ -1,0 +1,2259 @@
+<div class="ingreso-factura-wrapper">
+
+<div class="ingreso-factura-nav">
+    <button class="btn-cerrar-ingreso" onclick="cerrarIngresoFactura()">
+        <i class="fas fa-times"></i>
+    </button>
+    <div class="pasos-navegacion">
+        <div class="paso-nav-item active" data-paso="1">
+            <span class="paso-nav-numero">1.</span>
+            <span class="paso-nav-texto">Proveedor</span>
+        </div>
+        <div class="paso-nav-separador"></div>
+        <div class="paso-nav-item" data-paso="2">
+            <span class="paso-nav-numero">2</span>
+            <span class="paso-nav-texto">Datos Factura</span>
+        </div>
+        <div class="paso-nav-separador"></div>
+        <div class="paso-nav-item" data-paso="3">
+            <span class="paso-nav-numero">3</span>
+            <span class="paso-nav-texto">Pago</span>
+        </div>
+        <div class="paso-nav-separador"></div>
+        <div class="paso-nav-item" data-paso="4">
+            <span class="paso-nav-numero">4</span>
+            <span class="paso-nav-texto">Productos</span>
+        </div>
+        <div class="paso-nav-separador"></div>
+        <div class="paso-nav-item" data-paso="5">
+            <span class="paso-nav-numero">5</span>
+            <span class="paso-nav-texto">Confirmar</span>
+        </div>
+    </div>
+</div>
+
+
+<div class="ingreso-factura-content">
+    
+    <div id="paso1Ingreso" class="paso-container active">
+        <div class="paso-header-titulo">
+            <h2 class="paso-titulo-principal">
+                <span class="paso-numero-badge">1</span>
+                Seleccionar Proveedor
+            </h2>
+            <div class="paso-header-derecha">
+                <div class="modo-tabs-interno">
+                    <button class="modo-tab-interno" onclick="volverAFacturas()">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        <span>Facturas</span>
+                    </button>
+                    <button class="modo-tab-interno active">
+                        <i class="fas fa-box-open"></i>
+                        <span>Ingresar Factura</span>
+                    </button>
+                    <button class="btn-reiniciar-ingreso" onclick="reiniciarIngresoFactura()" title="Reiniciar proceso">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                </div>
+                <div class="paso-navegacion-btns">
+                    <button class="btn btn-accent" onclick="avanzarPasoIngreso(2)" id="btnPaso1Siguiente">
+                        Siguiente
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="proveedores-grid-ingreso" id="proveedoresGridIngreso">
+            
+        </div>
+        <button class="btn btn-secondary" style="margin-top: 20px;" onclick="mostrarModalNuevoProveedorIngreso()">
+            <i class="fas fa-plus"></i>
+            Nuevo Proveedor
+        </button>
+    </div>
+
+    
+    <div id="paso2Ingreso" class="paso-container">
+        <div class="paso-header-titulo">
+            <h2 class="paso-titulo-principal">
+                <span class="paso-numero-badge">2</span>
+                Datos de la Factura
+            </h2>
+            <div class="paso-header-derecha">
+                <div class="modo-tabs-interno">
+                    <button class="modo-tab-interno" onclick="volverAFacturas()">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        <span>Facturas</span>
+                    </button>
+                    <button class="modo-tab-interno active">
+                        <i class="fas fa-box-open"></i>
+                        <span>Ingresar Factura</span>
+                    </button>
+                    <button class="btn-reiniciar-ingreso" onclick="reiniciarIngresoFactura()" title="Reiniciar proceso">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                </div>
+                <div class="paso-navegacion-btns">
+                    <button class="btn btn-secondary" onclick="volverPasoIngreso(1)">
+                        <i class="fas fa-arrow-left"></i>
+                        Atrás
+                    </button>
+                    <button class="btn btn-accent" onclick="avanzarPasoIngreso(3)" id="btnPaso2Siguiente">
+                        Siguiente
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="info-proveedor-seleccionado" id="infoProveedorIngreso">
+            
+        </div>
+        
+        <div class="form-grid-ingreso">
+            <div class="form-group">
+                <label class="form-label required">Número de Factura</label>
+                <input type="text" id="numeroFacturaIngreso" class="form-input" 
+                       placeholder="001-001-000000001" required autocomplete="off">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label required">Fecha de Emisión</label>
+                <div class="date-select-group" id="fechaEmisionGroup" style="display:flex;gap:8px;align-items:center;">
+                    <select id="fechaEmisionDia" class="form-input" style="width:80px;"></select>
+                    <select id="fechaEmisionMes" class="form-input" style="width:140px;"></select>
+                    <select id="fechaEmisionAnio" class="form-input" style="width:120px;"></select>
+                </div>
+                <input type="hidden" id="fechaEmisionIngreso" />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label required">Fecha de Vencimiento</label>
+                <div class="date-select-group" id="fechaVencimientoGroup" style="display:flex;gap:8px;align-items:center;">
+                    <select id="fechaVencimientoDia" class="form-input" style="width:80px;"></select>
+                    <select id="fechaVencimientoMes" class="form-input" style="width:140px;"></select>
+                    <select id="fechaVencimientoAnio" class="form-input" style="width:120px;"></select>
+                </div>
+                <input type="hidden" id="fechaVencimientoIngreso" />
+            </div>
+                
+                <div class="form-group form-full">
+                    <label class="form-label">Notas</label>
+                    <textarea id="notasFacturaIngreso" class="form-textarea" rows="3" 
+                              placeholder="Notas adicionales de la factura..."></textarea>
+                </div>
+            </div>
+    </div>
+
+    
+    <div id="paso3Ingreso" class="paso-container">
+        <div class="paso-header-titulo">
+            <h2 class="paso-titulo-principal">
+                <span class="paso-numero-badge">3</span>
+                Método de Pago
+            </h2>
+            <div class="paso-header-derecha">
+                <div class="modo-tabs-interno">
+                    <button class="modo-tab-interno" onclick="volverAFacturas()">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        <span>Facturas</span>
+                    </button>
+                    <button class="modo-tab-interno active">
+                        <i class="fas fa-box-open"></i>
+                        <span>Ingresar Factura</span>
+                    </button>
+                    <button class="btn-reiniciar-ingreso" onclick="reiniciarIngresoFactura()" title="Reiniciar proceso">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                </div>
+                <div class="paso-navegacion-btns">
+                    <button class="btn btn-secondary" onclick="volverPasoIngreso(2)">
+                        <i class="fas fa-arrow-left"></i>
+                        Atrás
+                    </button>
+                    <button class="btn btn-accent" onclick="avanzarPasoIngreso(4)" id="btnPaso3Siguiente">
+                        Siguiente
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="metodos-pago-grid metodos-pago-layout">
+            <div class="metodos-principales">
+                <button class="metodo-pago-btn" data-tipo="CONTADO" onclick="seleccionarTipoPagoIngreso('CONTADO')">
+                    <i class="fas fa-money-bill-wave"></i>
+                    <span>Contado</span>
+                </button>
+                <button class="metodo-pago-btn" data-tipo="PLAZO" onclick="seleccionarTipoPagoIngreso('PLAZO')">
+                    <i class="fas fa-clock"></i>
+                    <span>Plazo</span>
+                </button>
+            </div>
+
+            <div class="metodos-submetodos" id="submetodosContado" style="display:none;">
+                <small style="display:block;margin-bottom:8px;color:var(--text-secondary);font-weight:600">Si eliges <strong>Contado</strong>, selecciona el medio:</small>
+                <div class="sub-buttons">
+                    <button class="metodo-pago-btn" data-submetodo="EFECTIVO" onclick="seleccionarSubMetodoPagoIngreso('EFECTIVO')">
+                        <i class="fas fa-hand-holding-usd"></i>
+                        <span>Efectivo</span>
+                    </button>
+                    <button class="metodo-pago-btn" data-submetodo="TRANSFERENCIA" onclick="seleccionarSubMetodoPagoIngreso('TRANSFERENCIA')">
+                        <i class="fas fa-university"></i>
+                        <span>Transferencia</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+    <div id="paso4Ingreso" class="paso-container">
+        <div class="paso-header-titulo">
+            <h2 class="paso-titulo-principal">
+                <span class="paso-numero-badge">4</span>
+                Productos de la Factura
+            </h2>
+            <div class="paso-header-derecha">
+                <div class="modo-tabs-interno">
+                    <button class="modo-tab-interno" onclick="volverAFacturas()">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        <span>Facturas</span>
+                    </button>
+                    <button class="modo-tab-interno active">
+                        <i class="fas fa-box-open"></i>
+                        <span>Ingresar Factura</span>
+                    </button>
+                    <button class="btn-reiniciar-ingreso" onclick="reiniciarIngresoFactura()" title="Reiniciar proceso">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                </div>
+                <div class="paso-navegacion-btns">
+                    <button class="btn btn-secondary" onclick="volverPasoIngreso(3)">
+                        <i class="fas fa-arrow-left"></i>
+                        Atrás
+                    </button>
+                    <button class="btn btn-accent" onclick="avanzarPasoIngreso(5)" id="btnPaso4Siguiente">
+                        Siguiente
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="busqueda-productos">
+                <div class="form-group">
+                    <label class="form-label">Buscar Producto</label>
+                    <div class="busqueda-input-group">
+                        <input type="text" id="busquedaProductoIngreso" class="form-input" 
+                               placeholder="Código o nombre del producto..." 
+                               onkeyup="buscarProductoIngreso(event)">
+                        <button class="btn btn-accent" onclick="mostrarModalNuevoProductoIngreso()">
+                            <i class="fas fa-plus"></i>
+                            Nuevo
+                        </button>
+                    </div>
+                    <div id="resultadosBusquedaIngreso" class="busqueda-resultados"></div>
+                </div>
+            </div>
+            
+            
+            <div class="productos-tabla-container">
+    <table class="productos-tabla" id="tablaProductosIngreso">
+<colgroup>
+    <col style="width: 8%;">
+    <col style="width: 30%;">
+    <col style="width: 6%;">
+    <col style="width: 9%;">
+    <col style="width: 10%;">
+    <col style="width: 9%;">
+    <col style="width: 10%;">
+    <col style="width: 18%;">
+</colgroup>
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Cant.</th>
+                <th>P. Proveedor</th>
+                <th>% Ganancia</th>
+                <th>P. Venta</th>
+                <th>Subtotal</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody id="productosIngresoCuerpo">
+            <tr class="empty-row">
+                <td colspan="8">
+                    <div class="empty-state">
+                        <i class="fas fa-box-open"></i>
+                        <p>No hay productos agregados</p>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+    </div>
+
+    
+    <div id="paso5Ingreso" class="paso-container">
+        <div class="paso-header-titulo">
+            <h2 class="paso-titulo-principal">
+                <span class="paso-numero-badge">5</span>
+                Confirmar y Guardar
+            </h2>
+            <div class="paso-header-derecha">
+                <div class="modo-tabs-interno">
+                    <button class="modo-tab-interno" onclick="volverAFacturas()">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        <span>Facturas</span>
+                    </button>
+                    <button class="modo-tab-interno active">
+                        <i class="fas fa-box-open"></i>
+                        <span>Ingresar Factura</span>
+                    </button>
+                    <button class="btn-reiniciar-ingreso" onclick="reiniciarIngresoFactura()" title="Reiniciar proceso">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                </div>
+                <div class="paso-navegacion-btns">
+                    <button class="btn btn-secondary" onclick="volverPasoIngreso(4)">
+                        <i class="fas fa-arrow-left"></i>
+                        Atrás
+                    </button>
+                    <button class="btn btn-success" onclick="guardarFacturaIngreso()">
+                        <i class="fas fa-save"></i>
+                        Guardar Factura
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="resumen-factura">
+                <h3 class="resumen-titulo">
+                    <i class="fas fa-file-invoice"></i>
+                    Resumen de la Factura
+                </h3>
+                
+                <div class="resumen-grid">
+                    <div class="resumen-item">
+                        <span class="resumen-label">Proveedor:</span>
+                        <span class="resumen-valor" id="resumenProveedor">-</span>
+                    </div>
+                    <div class="resumen-item">
+                        <span class="resumen-label">Número de Factura:</span>
+                        <span class="resumen-valor" id="resumenNumero">-</span>
+                    </div>
+                    <div class="resumen-item">
+                        <span class="resumen-label">Fecha Emisión:</span>
+                        <span class="resumen-valor" id="resumenFechaEmision">-</span>
+                    </div>
+                    <div class="resumen-item">
+                        <span class="resumen-label">Fecha Vencimiento:</span>
+                        <span class="resumen-valor" id="resumenFechaVencimiento">-</span>
+                    </div>
+                    <div class="resumen-item">
+                        <span class="resumen-label">Método de Pago:</span>
+                        <span class="resumen-valor" id="resumenMetodoPago">-</span>
+                    </div>
+                    <div class="resumen-item">
+                        <span class="resumen-label">Total Items:</span>
+                        <span class="resumen-valor" id="resumenTotalItems">0</span>
+                    </div>
+                </div>
+                
+                <div class="resumen-totales">
+                    <div class="resumen-total-item">
+                        <span class="resumen-total-label">Subtotal:</span>
+                        <span class="resumen-total-valor" id="resumenSubtotal">$0.00</span>
+                    </div>
+                    
+                    <div class="resumen-tax-discount-container">
+                        <div class="resumen-total-item">
+                            <span class="resumen-total-label">IVA (15%):</span>
+                            <span class="resumen-total-valor" id="resumenIva">$0.00</span>
+                        </div>
+                        <div class="resumen-total-item flex-column">
+                            <span class="resumen-total-label">Descuento aplicado ($):</span>
+                            <input type="text" id="descuentoInput" placeholder="Ej: 5.50" class="input-resumen-grande" oninput="actualizarDescuento(this.value)">
+                        </div>
+                    </div>
+
+                    <div class="resumen-total-item grande">
+                        <span class="resumen-total-label">TOTAL FACTURA:</span>
+                        <span class="resumen-total-valor accent" id="resumenTotal">$0.00</span>
+                    </div>
+                </div>
+            </div>
+    </div>
+</div>
+
+<div class="lp-solutions-footer">
+    <div class="lp-powered-by">
+        POWERED BY <img src="img/dev/lpsolutionsblack.webp" alt="LP Solutions" class="lp-brand-logo">
+    </div>
+</div>
+
+</div>
+
+<div id="modalNuevoProveedorIngreso" class="modal">
+    <div class="modal-overlay" onclick="cerrarModalNuevoProveedorIngreso()"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>
+                <i class="fas fa-building"></i>
+                Nuevo Proveedor
+            </h3>
+            <button class="modal-close" onclick="cerrarModalNuevoProveedorIngreso()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <form id="formNuevoProveedorIngreso">
+                <div class="form-group">
+                    <label class="form-label required">Código</label>
+                    <input type="text" id="codigoProveedorIngreso" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label required">Empresa</label>
+                    <input type="text" id="empresaProveedorIngreso" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Vendedor</label>
+                    <input type="text" id="vendedorProveedorIngreso" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label required">Contacto WhatsApp</label>
+                    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center">
+                        <input type="text" id="contactoProveedorIngreso" class="form-input" placeholder="0999999999 o 593999999999" required>
+                        <button type="button" class="btn btn-success" id="btnComprobarWhatsappIngreso" onclick="comprobarWhatsappNuevoProveedorIngreso()">
+                            <i class="fab fa-whatsapp"></i>
+                            Comprobar
+                        </button>
+                    </div>
+                    <div id="whatsappEstadoProveedorIngreso" style="margin-top:8px;color:#6b7280;font-weight:700;font-size:.86rem">
+                        <i class="fas fa-circle-info"></i> Ingresa un número para comprobar WhatsApp.
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="cerrarModalNuevoProveedorIngreso()">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-accent">
+                        <i class="fas fa-save"></i>
+                        Guardar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<div id="modalNuevoProductoIngreso" class="modal">
+    <div class="modal-overlay" onclick="cerrarModalNuevoProductoIngreso()"></div>
+    <div class="modal-content modal-lg">
+        <div class="modal-header">
+            <h3>
+                <i class="fas fa-box"></i>
+                Nuevo Producto
+            </h3>
+            <button class="modal-close" onclick="cerrarModalNuevoProductoIngreso()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <form id="formNuevoProductoIngreso">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label required">Código</label>
+                        <input type="text" id="codigoNuevoProducto" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label required">Nombre</label>
+                        <input type="text" id="nombreNuevoProducto" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label required">Cantidad</label>
+                        <input type="number" id="cantidadNuevoProducto" class="form-input" min="0.01" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label required">Precio Proveedor</label>
+                        <div class="input-group">
+                            <span class="input-prefix">$</span>
+                            <input type="number" id="precioProveedorNuevoProducto" class="form-input" min="0" step="0.01" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label required">Precio Venta</label>
+                        <div class="input-group">
+                            <span class="input-prefix">$</span>
+                            <input type="number" id="precioVentaNuevoProducto" class="form-input" min="0" step="0.01" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label required">Stock Mínimo</label>
+                        <input type="number" id="stockMinimoNuevoProducto" class="form-input" min="0" step="1" value="0">
+                    </div>
+                </div>
+
+                
+                <div class="form-selections">
+                    <div class="form-group">
+                        <label class="form-label required">Presentación</label>
+                        <input type="hidden" id="unidadNuevoProducto" value="UNIDADES">
+                        <div id="presentacionBotonesNuevoProducto" class="presentacion-grid"></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label required">Zona</label>
+                        <input type="hidden" id="zonaNuevoProducto" value="1">
+                        <div id="zonaBotonesNuevoProducto" class="zona-grid"></div>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="cerrarModalNuevoProductoIngreso()" style="margin-right:12px;">
+                Cancelar
+            </button>
+            <button type="submit" form="formNuevoProductoIngreso" class="btn btn-accent">
+                <i class="fas fa-plus"></i>
+                Crear Producto
+            </button>
+        </div>
+    </div>
+</div>
+
+
+    
+    <div id="inventarioProgress" class="progress-overlay hidden">
+        <div class="progress-card">
+            <div class="progress-title">Actualizando inventario...</div>
+            <div class="progress-bar-bg" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+                <div id="inventarioProgressBar" class="progress-bar" style="width:0%"></div>
+            </div>
+            <div id="inventarioProgressText" class="progress-text">0%</div>
+        </div>
+    </div>
+<div id="modalCambiarZonaIngreso" class="modal">
+    <div class="modal-overlay" onclick="cerrarModalCambiarZona()"></div>
+    <div class="modal-content modal-sm">
+        <div class="modal-header">
+            <h3>
+                <i class="fas fa-map-pin"></i>
+                Seleccionar Zona para Producto
+            </h3>
+            <button class="modal-close" onclick="cerrarModalCambiarZona()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p id="modalZonaProductoInfo" style="margin-bottom:8px;color:var(--text-secondary)"></p>
+            <div id="zonaBotonesModal" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:50vh;overflow:auto"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="cerrarModalCambiarZona()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+
+<div id="modalAlertaProveedores" class="modal">
+    <div class="modal-overlay"></div>
+    <div class="modal-content modal-alerta">
+        <div class="modal-body">
+            <div class="alerta-icono" id="alertaIcono">
+                <i class="fas fa-info-circle"></i>
+            </div>
+            <h3 id="alertaTitulo">Mensaje</h3>
+            <div id="alertaMensaje"></div>
+            <div id="alertaDetalles" style="display:none;margin-top:12px;"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="alertaBtnDetalles" style="display:none;margin-right:8px;">
+                Ver detalles
+            </button>
+            <button class="btn btn-secondary" id="alertaBtnCancelar" style="display: none;">
+                Cancelar
+            </button>
+            <button class="btn btn-accent" id="alertaBtnConfirmar">
+                Aceptar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Actualizar Inventario para Ingreso de Factura -->
+<div id="modalActualizarInventarioIngreso" class="ingreso-actualizar-modal-overlay">
+    <div class="ingreso-actualizar-modal-container" style="max-width: 500px;">
+        <div class="ingreso-actualizar-modal-header">
+            <h2><i class="fas fa-edit"></i> Ajustar Inventario</h2>
+            <button class="ingreso-actualizar-modal-close" onclick="cerrarModalActualizarInventarioIngreso()">&times;</button>
+        </div>
+        <div class="ingreso-actualizar-modal-content">
+            <!-- Info del producto -->
+            <div class="ingreso-producto-info-card" id="ingresoProductoInfoCard">
+                <div class="ingreso-producto-info-header">
+                    <div class="ingreso-producto-codigo" id="ingresoProductoCodigoInfo">-</div>
+                    <div class="ingreso-producto-nombre" id="ingresoProductoNombreInfo">-</div>
+                </div>
+            </div>
+
+            <!-- Campos editables -->
+            <div class="ingreso-actualizar-form">
+                <div class="ingreso-form-row">
+                    <div class="ingreso-form-group">
+                        <label class="ingreso-form-label">
+                            <i class="fas fa-boxes"></i> Stock Actual
+                        </label>
+                        <input type="text" id="ingresoStockActualDisplay" class="ingreso-form-input readonly-input" readonly>
+                    </div>
+                    <div class="ingreso-form-group">
+                        <label class="ingreso-form-label">
+                            <i class="fas fa-arrow-right"></i> Stock Verificado
+                        </label>
+                        <input type="number" id="ingresoNuevoStockInput" class="ingreso-form-input" 
+                            placeholder="0.00" step="0.01" min="0">
+                    </div>
+                </div>
+
+                <div class="ingreso-form-row">
+                    <div class="ingreso-form-group">
+                        <label class="ingreso-form-label">
+                            <i class="fas fa-map-marker-alt"></i> Zona
+                        </label>
+                        <input type="text" id="ingresoNuevaZonaInput" class="ingreso-form-input" 
+                            placeholder="Ej: A1, B2, Bodega...">
+                    </div>
+                    <div class="ingreso-form-group">
+                        <label class="ingreso-form-label">
+                            <i class="fas fa-exclamation-triangle"></i> Stock Mínimo
+                        </label>
+                        <input type="number" id="ingresoNuevoStockMinimoInput" class="ingreso-form-input" 
+                            placeholder="0" step="0.01" min="0">
+                    </div>
+                </div>
+
+                <div class="ingreso-form-group" style="margin-top: 15px;">
+                    <label class="ingreso-form-label">
+                        <i class="fas fa-truck"></i> Proveedor
+                    </label>
+                    <select id="ingresoNuevoProveedorIdInput" class="ingreso-form-input">
+                        <option value="">Sin Proveedor</option>
+                    </select>
+                </div>
+
+                <div class="ingreso-form-group" style="margin-top: 15px;">
+                    <label class="ingreso-form-label">
+                        <i class="fas fa-shopping-cart"></i> Cantidad en esta Factura
+                    </label>
+                    <input type="number" id="ingresoCalculosCantidadInput" class="ingreso-form-input" 
+                        placeholder="0.00" step="0.01" min="0.01" value="1">
+                </div>
+            </div>
+
+            <!-- Botones de acción -->
+            <div class="ingreso-actualizar-modal-actions">
+                <button class="btn-ingreso-actualizar-cancelar" onclick="cerrarModalActualizarInventarioIngreso()">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button class="btn-ingreso-actualizar-confirmar" onclick="confirmarActualizacionInventarioIngreso()">
+                    <i class="fas fa-save"></i> Guardar Cambios
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmación para Actualizar Inventario en Ingreso -->
+<div id="ingresoConfirmModalInventario" class="ingreso-actualizar-modal-overlay">
+    <div class="ingreso-actualizar-modal-container ingreso-confirm-modal" style="max-width: 450px;">
+        <div class="ingreso-actualizar-modal-header confirm-header">
+            <h2><i class="fas fa-question-circle"></i> Confirmar Actualización</h2>
+        </div>
+        <div class="ingreso-actualizar-modal-content">
+            <div class="ingreso-confirm-message" id="ingresoConfirmMessage">
+                <!-- Contenido dinámico -->
+            </div>
+            <div class="ingreso-actualizar-modal-actions">
+                <button class="btn-ingreso-actualizar-cancelar" onclick="cancelarConfirmacionInventarioIngreso()">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button class="btn-ingreso-actualizar-confirmar" id="btnEjecutarActualizacionIngreso" onclick="ejecutarActualizacionInventarioIngreso()">
+                    <i class="fas fa-check"></i> Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Screen Blocker para operaciones en Ingreso -->
+<div id="ingresoScreenBlocker" class="ingreso-screen-blocker">
+    <div class="ingreso-blocker-content">
+        <i class="fas fa-spinner fa-spin"></i>
+        <p id="ingresoBlockerText">Procesando...</p>
+    </div>
+</div>
+
+<style>
+    
+    .modal-alerta .alert-details-table{ max-height:320px; overflow:auto; margin-top:8px; }
+    .modal-alerta .alert-table{ width:100%; border-collapse:collapse; font-size:0.95rem; }
+    .modal-alerta .alert-table th{ background:#f3f4f6; text-align:left; padding:8px; font-weight:600; color:var(--text-primary); }
+    .modal-alerta .alert-table td{ padding:8px; border-bottom:1px solid #eef2f7; color:var(--text-secondary); }
+    .modal-alerta .alert-table tr.updated td{ color:var(--text-primary); }
+    .modal-alerta .alert-table tr.inserted td{ color:#065f46; }
+    .modal-alerta .alert-table tr.failed td{ color:var(--color-danger); }
+    
+    
+    .ingreso-factura-nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        border-bottom: 2px solid var(--bg-primary);
+        z-index: 100;
+        padding: 12px 25px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        box-shadow: var(--shadow-sm);
+        height: 65px;
+    }
+
+    .btn-cerrar-ingreso {
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 35px;
+        height: 35px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--color-danger);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        font-size: 1em;
+    }
+
+    
+    
+    #savingProductOverlay{
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.45);
+        z-index: 14000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+    #savingProductOverlay .saving-card{
+        background: #0b1220; 
+        color: white;
+        padding: 18px 20px;
+        border-radius: 12px;
+        width: 680px;
+        max-width: 100%;
+        box-shadow: 0 20px 60px rgba(2,6,23,0.7);
+        display: flex;
+        gap: 14px;
+        align-items: center;
+    }
+    #savingProductOverlay .saving-left{ width:56px; text-align:center; font-size:1.4rem }
+    #savingProductOverlay .saving-main{ flex:1 }
+    #savingProductOverlay .saving-text{ font-weight:700; font-size:1.05rem }
+    #savingProductOverlay .saving-sub{ font-size:0.9rem; color:rgba(255,255,255,0.85); margin-top:6px }
+    #savingProductOverlay .progress-track{ position:relative; width:100%; height:12px; background:rgba(255,255,255,0.06); border-radius:999px; margin-top:12px; overflow:hidden }
+    #savingProductOverlay .progress-fill{ position:absolute; left:0; top:0; height:100%; width:0%; background:linear-gradient(90deg,#06b6d4,#0ea5ad); transition:width 300ms linear; z-index:1 }
+    #savingProductOverlay .truck{ position:absolute; top:50%; transform:translate(-50%,-50%); font-size:18px; color:#fff; transition:left 350ms linear; z-index:3; pointer-events:none }
+    #savingProductOverlay .house{ font-size:20px; color:#fff }
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .btn-cerrar-ingreso:hover {
+        background: #c82333;
+        transform: translateY(-50%) scale(1.1);
+    }
+
+    .pasos-navegacion {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .paso-nav-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+    }
+
+    .paso-nav-numero {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.9em;
+        transition: all var(--transition-fast);
+    }
+
+    .paso-nav-item.active .paso-nav-numero {
+        background: var(--color-accent);
+        color: white;
+        transform: scale(1.15);
+    }
+
+    .paso-nav-item.completado .paso-nav-numero {
+        background: var(--color-success);
+        color: white;
+    }
+
+    .paso-nav-texto {
+        font-size: 0.75em;
+        font-weight: 600;
+        color: var(--text-secondary);
+        transition: all var(--transition-fast);
+    }
+
+    .paso-nav-item.active .paso-nav-texto {
+        color: var(--color-accent);
+    }
+
+    .paso-nav-separador {
+        width: 30px;
+        height: 2px;
+        background: var(--bg-secondary);
+    }
+
+    .ingreso-factura-content {
+        padding-top: 90px;
+        padding-left: 25px;
+        padding-right: 25px;
+        padding-bottom: 25px;
+        
+        height: 100%;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+        background: var(--bg-body);
+    }
+
+    
+
+    .paso-container {
+        display: none;
+        padding: 20px;
+    }
+
+    .paso-container.active {
+        display: block;
+        animation: fadeIn 0.3s ease;
+    }
+
+    
+    .paso-header-titulo {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        margin-bottom: 25px;
+        background: white;
+        border-radius: var(--border-radius-md);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .paso-header-derecha {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .modo-tabs-interno {
+        display: flex;
+        gap: 10px;
+        background: var(--bg-primary);
+        padding: 5px;
+        border-radius: var(--border-radius-md);
+    }
+
+    .modo-tab-interno {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: 0.95em;
+        font-weight: 600;
+        border-radius: var(--border-radius-sm);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+    }
+
+    .modo-tab-interno i {
+        font-size: 1.1em;
+        transition: all var(--transition-fast);
+    }
+
+    .btn-reiniciar-ingreso {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        background: transparent;
+        border: none;
+        border-radius: 50%;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        margin-left: 5px;
+    }
+
+    .btn-reiniciar-ingreso:hover {
+        background: rgba(220, 53, 69, 0.1);
+        color: var(--color-danger);
+        transform: rotate(180deg);
+    }
+
+    .modo-tab-interno:hover {
+        background: var(--bg-white);
+        color: var(--text-primary);
+    }
+
+    .modo-tab-interno.active {
+        background: var(--color-accent);
+        color: white;
+    }
+
+    .paso-titulo-principal {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        font-size: 1.8em;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 0;
+    }
+
+    .paso-numero-badge {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 50px;
+        height: 50px;
+        background: var(--color-accent);
+        color: white;
+        border-radius: 50%;
+        font-size: 1.2em;
+        font-weight: 700;
+        box-shadow: 0 4px 10px rgba(255, 193, 7, 0.3);
+    }
+
+    .paso-navegacion-btns {
+        display: flex;
+        gap: 10px;
+    }
+
+    .paso-navegacion-btns .btn {
+        min-width: 120px;
+        padding: 12px 20px;
+        font-weight: 600;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        transition: all var(--transition-fast);
+    }
+
+    .paso-navegacion-btns .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .paso-navegacion-btns .btn:active {
+        transform: translateY(0);
+    }
+
+    .paso-navegacion-btns .btn-secondary {
+        background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+    }
+
+    .paso-navegacion-btns .btn-accent {
+        background: linear-gradient(135deg, var(--color-accent) 0%, #e6b800 100%);
+    }
+
+    .paso-navegacion-btns .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    
+
+    .proveedores-grid-ingreso {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 12px;
+        margin-bottom: 12px;
+        max-height: 400px;
+        overflow-y: auto;
+        padding: 20px;
+        background: white;
+        border-radius: var(--border-radius-md);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border: 1px solid #e8e8e8;
+    }
+
+    .proveedor-btn-ingreso {
+        padding: 15px 12px;
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        border: 2px solid #e0e0e0;
+        border-radius: var(--border-radius-md);
+        font-size: 0.9em;
+        font-weight: 600;
+        color: var(--text-primary);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        text-align: center;
+        min-height: 70px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+    }
+
+    .proveedor-btn-ingreso:hover {
+        border-color: var(--color-accent);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        background: linear-gradient(135deg, #fffef7 0%, #fff9e6 100%);
+    }
+
+    .proveedor-btn-ingreso.selected {
+        background: linear-gradient(135deg, var(--color-accent) 0%, #e6b800 100%);
+        color: white;
+        border-color: var(--color-accent);
+        box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);
+        transform: translateY(-2px);
+    }
+
+    .form-grid-ingreso {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr;
+        gap: 15px;
+        margin-bottom: 15px;
+        padding: 20px;
+        background: white;
+        border-radius: var(--border-radius-md);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border: 1px solid #e8e8e8;
+        box-sizing: border-box;
+    }
+
+    .form-full {
+        grid-column: 1 / -1;
+    }
+
+    
+    .form-grid-ingreso .form-input,
+    .form-grid-ingreso .form-textarea {
+        box-sizing: border-box;
+        width: 100%;
+    }
+
+    .info-proveedor-seleccionado {
+        background: linear-gradient(135deg, #fffef7 0%, #fff9e6 100%);
+        padding: 18px 20px;
+        border-radius: var(--border-radius-md);
+        margin-bottom: 20px;
+        border-left: 4px solid var(--color-accent);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border: 1px solid #e8e8e8;
+        border-left: 4px solid var(--color-accent);
+        min-height: 70px;
+        display: flex;
+        align-items: center;
+    }
+
+    .info-proveedor-seleccionado:empty {
+        display: none;
+    }
+
+    .info-proveedor-seleccionado:empty::before {
+        content: 'No hay proveedor seleccionado';
+        color: var(--text-secondary);
+        font-style: italic;
+        display: block;
+    }
+
+    .metodos-pago-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 15px;
+        padding: 20px;
+        background: white;
+        border-radius: var(--border-radius-md);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border: 1px solid #e8e8e8;
+    }
+
+    
+    .metodos-pago-layout {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    .metodos-pago-layout .metodos-principales {
+        flex: 1 1 50%;
+        display: flex;
+        gap: 12px;
+    }
+
+    .metodos-pago-layout .metodos-submetodos {
+        flex: 1 1 50%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .metodos-pago-layout .metodos-principales .metodo-pago-btn,
+    .metodos-pago-layout .metodos-submetodos .sub-buttons .metodo-pago-btn {
+        flex: 1 1 0;
+        min-height: 72px;
+    }
+
+    .metodos-pago-layout .sub-buttons {
+        display: flex;
+        gap: 12px;
+    }
+
+    @media (max-width: 768px) {
+        .metodos-pago-layout {
+            flex-direction: column;
+        }
+        .metodos-pago-layout .metodos-principales,
+        .metodos-pago-layout .metodos-submetodos {
+            flex-direction: row;
+        }
+    }
+
+    .metodo-pago-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding: 25px 15px;
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        border: 2px solid #e0e0e0;
+        border-radius: var(--border-radius-md);
+        font-size: 0.95em;
+        font-weight: 600;
+        color: var(--text-primary);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+    }
+
+    .metodo-pago-btn i {
+        font-size: 2.5em;
+        color: var(--color-accent);
+    }
+
+    .metodo-pago-btn:hover {
+        border-color: var(--color-accent);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        background: linear-gradient(135deg, #fffef7 0%, #fff9e6 100%);
+    }
+
+    .metodo-pago-btn.selected {
+        background: linear-gradient(135deg, var(--color-accent) 0%, #e6b800 100%);
+        color: white;
+        border-color: var(--color-accent);
+        box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);
+        transform: translateY(-2px);
+    }
+
+    .metodo-pago-btn.selected i {
+        color: white;
+        transform: scale(1.1);
+    }
+
+    .busqueda-productos {
+        background: white;
+        padding: 20px;
+        border-radius: var(--border-radius-md);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border: 1px solid #e8e8e8;
+        margin-bottom: 20px;
+    }
+
+    .busqueda-input-group {
+        display: flex;
+        gap: 10px;
+    }
+
+    .busqueda-input-group .form-input {
+        flex: 1;
+    }
+
+    .busqueda-resultados {
+        margin-top: 10px;
+        max-height: 300px;
+        overflow-y: auto;
+        border-radius: var(--border-radius-sm);
+        border: 1px solid #e0e0e0;
+        background: #fafafa;
+    }
+
+    .resultado-item {
+        padding: 12px 15px;
+        background: white;
+        border: 1px solid #e0e0e0;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        border-radius: var(--border-radius-sm);
+        margin-bottom: 5px;
+    }
+
+    .resultado-item:hover {
+        background: linear-gradient(135deg, var(--color-accent) 0%, #e6b800 100%);
+        color: white;
+        transform: translateX(5px);
+        box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
+    }
+
+    .first-badge {
+        display: inline-block;
+        vertical-align: middle;
+        width: 26px;
+        height: 26px;
+        line-height: 26px;
+        text-align: center;
+        border-radius: 50%;
+        background: var(--color-accent);
+        color: white;
+        font-weight: 700;
+        margin-right: 8px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        font-size: 0.9em;
+    }
+
+    .resultado-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .btn-eliminar-producto {
+        padding: 8px 12px;
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+        border: none;
+        border-radius: var(--border-radius-sm);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+    }
+
+    .btn-eliminar-producto:hover {
+        background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(220, 53, 69, 0.4);
+    }
+
+    .btn-eliminar-producto:active {
+        transform: translateY(0);
+    }
+
+    
+    .percentage-button {
+        padding: 4px 6px;
+        font-size: 0.78rem;
+        border-radius: 6px;
+        background: #E5E7EB;
+        color: #374151;
+        border: 1px solid #D1D5DB;
+        cursor: pointer;
+    }
+    .percentage-button.active {
+        background: #1E40AF;
+        color: white;
+        border-color: #1E3A8A;
+        font-weight: 700;
+    }
+
+    .btn-zona {
+        padding: 8px 10px;
+        border-radius: 6px;
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        cursor: pointer;
+        transition: all 0.12s ease;
+    }
+    .btn-zona:hover { transform: translateY(-2px); background: #eef2ff; }
+
+    .btn-action { border: none; cursor: pointer; padding: 6px; border-radius: 6px; }
+
+    .resumen-factura {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        padding: 25px;
+        border-radius: var(--border-radius-md);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        border: 2px solid #e8e8e8;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .resumen-factura::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, var(--color-accent) 0%, #e6b800 100%);
+    }
+
+    .resumen-titulo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 20px;
+        font-size: 1.3em;
+        color: var(--text-primary);
+    }
+
+    .resumen-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+        margin-bottom: 30px;
+    }
+
+    .resumen-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 15px;
+        background: white;
+        border-radius: var(--border-radius-sm);
+        border: 1px solid #e8e8e8;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        transition: all var(--transition-fast);
+    }
+
+    .resumen-item:hover {
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        transform: translateY(-1px);
+    }
+
+    .resumen-label {
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .resumen-valor {
+        color: var(--text-primary);
+        font-weight: 600;
+    }
+
+    .resumen-totales {
+        border-top: 3px solid var(--color-accent);
+        padding-top: 20px;
+        background: linear-gradient(135deg, #fffef7 0%, #fff9e6 100%);
+        padding: 20px;
+        border-radius: var(--border-radius-md);
+        margin-top: 20px;
+    }
+
+    .resumen-total-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 0;
+        font-size: 1.1em;
+        font-weight: 600;
+    }
+
+    .resumen-total-item.grande {
+        font-size: 1.8em;
+        font-weight: 800;
+        margin-top: 10px;
+        padding-top: 15px;
+        border-top: 2px solid var(--color-accent);
+        color: var(--text-primary);
+    }
+
+    .resumen-total-valor.accent {
+        color: var(--color-accent);
+        text-shadow: 0 2px 4px rgba(255, 193, 7, 0.2);
+    }
+
+    
+    .modal-alerta {
+        max-width: 450px;
+        text-align: center;
+    }
+
+    .alerta-icono {
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+        font-size: 2em;
+    }
+
+    .alerta-icono.info {
+        background: rgba(52, 152, 219, 0.1);
+        color: #3498db;
+    }
+
+    .alerta-icono.success {
+        background: rgba(46, 204, 113, 0.1);
+        color: #2ecc71;
+    }
+
+    .alerta-icono.warning {
+        background: rgba(241, 196, 15, 0.1);
+        color: #f1c40f;
+    }
+
+    .alerta-icono.error {
+        background: rgba(231, 76, 60, 0.1);
+        color: #e74c3c;
+    }
+
+    .modal-alerta h3 {
+        font-size: 1.5em;
+        margin-bottom: 15px;
+        color: var(--text-primary);
+    }
+
+    .modal-alerta p {
+        font-size: 1em;
+        color: var(--text-secondary);
+        line-height: 1.6;
+        margin-bottom: 0;
+    }
+
+    .modal-footer {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        padding: 20px 30px;
+        border-top: 1px solid var(--bg-secondary);
+    }
+
+    .modal-footer .btn {
+        min-width: 120px;
+    }
+
+    
+    .empty-state {
+        padding: 40px 20px;
+        text-align: center;
+        color: var(--text-secondary);
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: var(--border-radius-md);
+        border: 2px dashed #dee2e6;
+    }
+
+    .empty-state i {
+        font-size: 3em;
+        margin-bottom: 15px;
+        opacity: 0.5;
+    }
+
+    
+    .badge-nuevo {
+        display: inline-block;
+        padding: 3px 8px;
+        background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+        color: white;
+        border-radius: 12px;
+        font-size: 0.75em;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);
+    }
+
+    
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .paso-container.active {
+        animation: fadeIn 0.3s ease-out;
+    }
+
+    
+    .card-depth-1 {
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.08);
+    }
+
+    .card-depth-2 {
+        box-shadow: 0 3px 6px rgba(0,0,0,0.08), 0 3px 6px rgba(0,0,0,0.10);
+    }
+
+    .card-depth-3 {
+        box-shadow: 0 10px 20px rgba(0,0,0,0.10), 0 6px 6px rgba(0,0,0,0.10);
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .form-grid-ingreso,
+        .resumen-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .metodos-pago-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+/* =========================================
+   TABLA DE PRODUCTOS - COMPLETA Y AJUSTADA
+   ========================================= */
+
+.productos-tabla-container {
+    overflow-x: auto;
+    margin: 20px 0;
+    border-radius: var(--border-radius-md);
+    border: 1px solid #e8e8e8;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.productos-tabla {
+    width: 100%;
+    min-width: 1120px;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+/* ---------- Encabezado ---------- */
+.productos-tabla thead {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.productos-tabla th {
+    padding: 13px 8px;
+    text-align: left;
+    font-weight: 700;
+    color: var(--text-primary);
+    border-bottom: 3px solid var(--color-accent);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    line-height: 1.15;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    background: transparent;
+}
+
+/* ---------- Celdas ---------- */
+.productos-tabla td {
+    padding: 10px 8px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: middle;
+    background: #fff;
+    transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.productos-tabla tbody tr {
+    transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.productos-tabla tbody tr:hover td {
+    background: linear-gradient(135deg, #fffef7 0%, #fff9e6 100%);
+}
+
+.productos-tabla tbody tr.producto-nuevo td {
+    background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+}
+
+.productos-tabla tbody tr.producto-nuevo:hover td {
+    background: linear-gradient(135deg, #dff1e1 0%, #ebf5df 100%);
+}
+
+/* ---------- Anchos por columna ---------- */
+.productos-tabla th:nth-child(1),
+.productos-tabla td:nth-child(1) {
+    width: 8%;
+}
+
+.productos-tabla th:nth-child(2),
+.productos-tabla td:nth-child(2) {
+    width: 30%;
+}
+
+.productos-tabla th:nth-child(3),
+.productos-tabla td:nth-child(3) {
+    width: 6%;
+}
+
+.productos-tabla th:nth-child(4),
+.productos-tabla td:nth-child(4) {
+    width: 9%;
+}
+
+.productos-tabla th:nth-child(5),
+.productos-tabla td:nth-child(5) {
+    width: 10%;
+}
+
+.productos-tabla th:nth-child(6),
+.productos-tabla td:nth-child(6) {
+    width: 9%;
+}
+
+.productos-tabla th:nth-child(7),
+.productos-tabla td:nth-child(7) {
+    width: 10%;
+}
+
+.productos-tabla th:nth-child(8),
+.productos-tabla td:nth-child(8) {
+    width: 18%;
+}
+
+/* ---------- Inputs generales ---------- */
+.productos-tabla input[type="number"],
+.productos-tabla input[type="text"],
+.productos-tabla textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1.8px solid #d6d6d6;
+    border-radius: 10px;
+    background: #ffffff;
+    padding: 9px 10px;
+    font-size: 0.94rem;
+    font-family: inherit;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.productos-tabla input[type="number"]:focus,
+.productos-tabla input[type="text"]:focus,
+.productos-tabla textarea:focus {
+    border-color: var(--color-accent);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.12);
+    background: #fffefb;
+}
+
+/* ---------- Código ---------- */
+.productos-tabla td:nth-child(1) {
+    font-weight: 600;
+    color: #4b5563;
+    white-space: nowrap;
+}
+
+/* ---------- Nombre del producto ---------- */
+.productos-tabla .col-nombre-producto,
+.productos-tabla td:nth-child(2) {
+    white-space: normal;
+    overflow: hidden;
+}
+
+.productos-tabla .input-nombre-producto,
+.productos-tabla td:nth-child(2) textarea {
+    width: 100%;
+    min-height: 60px;
+    max-height: 110px;
+    resize: none;
+    overflow-y: auto;
+    overflow-x: hidden;
+    box-sizing: border-box;
+    border: 1.8px solid #d6d6d6;
+    border-radius: 10px;
+    background: #fff;
+    padding: 10px 12px;
+    line-height: 1.2;
+    font-size: 0.93rem;
+    font-family: inherit;
+    text-transform: uppercase;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+
+.productos-tabla .input-nombre-producto:focus,
+.productos-tabla td:nth-child(2) textarea:focus {
+    border-color: var(--color-accent);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.12);
+    background: #fffefb;
+}
+
+/* Si por alguna razón sigue existiendo input en nombre */
+.productos-tabla td:nth-child(2) input[type="text"] {
+    min-height: 42px;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+
+/* ---------- Cantidad ---------- */
+.productos-tabla th:nth-child(3),
+.productos-tabla td:nth-child(3) {
+    text-align: center;
+}
+
+.productos-tabla td:nth-child(3) input[type="number"] {
+    text-align: center;
+    padding-left: 4px;
+    padding-right: 4px;
+    min-width: 0;
+    height: 36px;
+}
+
+/* ---------- Precio proveedor ---------- */
+.productos-tabla th:nth-child(4),
+.productos-tabla td:nth-child(4) {
+    text-align: center;
+    white-space: nowrap;
+}
+
+.productos-tabla td:nth-child(4) .currency-input,
+.productos-tabla td:nth-child(6) .currency-input {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.productos-tabla td:nth-child(4) .currency-input span,
+.productos-tabla td:nth-child(6) .currency-input span {
+    flex: 0 0 auto;
+    font-weight: 700;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+.productos-tabla td:nth-child(4) input,
+.productos-tabla td:nth-child(6) input {
+    min-width: 0;
+}
+
+/* ---------- % ganancia ---------- */
+.productos-tabla th:nth-child(5),
+.productos-tabla td:nth-child(5) {
+    text-align: center;
+}
+
+.productos-tabla td:nth-child(5) {
+    padding-top: 8px;
+    padding-bottom: 8px;
+}
+
+.productos-tabla td:nth-child(5) > div,
+.productos-tabla td:nth-child(5) .ganancia-grid,
+.productos-tabla td:nth-child(5) .percentage-buttons,
+.productos-tabla td:nth-child(5) .flex {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: center;
+    align-items: center;
+}
+
+.percentage-button {
+    padding: 4px 7px;
+    min-width: 38px;
+    border-radius: 7px;
+    border: 1px solid #d1d5db;
+    background: #e5e7eb;
+    color: #374151;
+    font-size: 0.74rem;
+    line-height: 1.1;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.percentage-button:hover {
+    transform: translateY(-1px);
+    background: #dbe1e8;
+}
+
+.percentage-button.active {
+    background: #1e40af;
+    color: #ffffff;
+    border-color: #1e3a8a;
+    font-weight: 700;
+}
+
+/* ---------- Precio venta ---------- */
+.productos-tabla th:nth-child(6),
+.productos-tabla td:nth-child(6) {
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* ---------- Subtotal ---------- */
+.productos-tabla th:nth-child(7),
+.productos-tabla td:nth-child(7) {
+    white-space: nowrap;
+}
+
+.productos-tabla td:nth-child(7) {
+    font-weight: 700;
+    font-size: 1rem;
+    color: #374151;
+}
+
+/* ---------- Acciones ---------- */
+.productos-tabla th:nth-child(8),
+.productos-tabla td:nth-child(8) {
+    text-align: center;
+}
+
+.productos-tabla td:nth-child(8) > div,
+.productos-tabla td:nth-child(8) .acciones-producto {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+}
+
+.productos-tabla td:nth-child(8) button,
+.productos-tabla td:nth-child(8) .btn-action,
+.productos-tabla td:nth-child(8) .btn-eliminar-producto {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 8px;
+    flex: 0 0 auto;
+}
+
+.btn-action {
+    border: none;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-action:hover {
+    transform: translateY(-1px);
+}
+
+.btn-eliminar-producto {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+    transition: all 0.15s ease;
+}
+
+.btn-eliminar-producto:hover {
+    background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.4);
+}
+
+/* ---------- Empty state ---------- */
+.productos-tabla .empty-row td {
+    padding: 0;
+}
+
+.productos-tabla .empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-secondary);
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 0;
+    border: none;
+}
+
+.productos-tabla .empty-state i {
+    font-size: 3em;
+    margin-bottom: 15px;
+    opacity: 0.5;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1280px) {
+    .productos-tabla {
+        min-width: 1080px;
+    }
+}
+
+@media (max-width: 900px) {
+    .productos-tabla {
+        min-width: 980px;
+    }
+
+    .productos-tabla th,
+    .productos-tabla td {
+        padding: 8px 6px;
+    }
+
+    .productos-tabla .input-nombre-producto,
+    .productos-tabla td:nth-child(2) textarea {
+        min-height: 58px;
+        font-size: 0.9rem;
+    }
+
+    .percentage-button {
+        min-width: 34px;
+        font-size: 0.7rem;
+        padding: 4px 6px;
+    }
+}
+
+/* =====================================================
+   ESTILOS MODALES ACTUALIZAR INVENTARIO - INGRESO
+   ===================================================== */
+
+.ingreso-screen-blocker {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 999999;
+}
+
+.ingreso-screen-blocker.active {
+    display: flex;
+}
+
+.ingreso-blocker-content {
+    text-align: center;
+    color: white;
+}
+
+.ingreso-blocker-content i {
+    font-size: 3em;
+    color: #d4a017;
+    margin-bottom: 20px;
+}
+
+.ingreso-blocker-content p {
+    font-size: 1.2em;
+    margin: 0;
+}
+
+.ingreso-actualizar-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 99998;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#ingresoConfirmModalInventario {
+    z-index: 99999;
+}
+
+.ingreso-actualizar-modal-overlay.active {
+    display: flex;
+    opacity: 1;
+}
+
+.ingreso-actualizar-modal-container {
+    background: white;
+    border-radius: 20px;
+    width: 90%;
+    max-height: 90vh;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.ingreso-actualizar-modal-overlay.active .ingreso-actualizar-modal-container {
+    transform: scale(1);
+}
+
+.ingreso-actualizar-modal-header {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+    color: white;
+    padding: 20px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ingreso-actualizar-modal-header h2 {
+    margin: 0;
+    font-size: 1.3em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ingreso-actualizar-modal-header h2 i {
+    color: #d4a017;
+}
+
+.ingreso-actualizar-modal-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 2em;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: all 0.2s ease;
+}
+
+.ingreso-actualizar-modal-close:hover {
+    color: #d4a017;
+    transform: scale(1.1);
+}
+
+.ingreso-actualizar-modal-content {
+    padding: 25px;
+    max-height: calc(90vh - 80px);
+    overflow-y: auto;
+}
+
+.ingreso-producto-info-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    padding: 20px;
+    color: white;
+    margin-bottom: 25px;
+}
+
+.ingreso-producto-info-header {
+    text-align: center;
+}
+
+.ingreso-producto-codigo {
+    font-size: 0.9em;
+    opacity: 0.9;
+    margin-bottom: 5px;
+}
+
+.ingreso-producto-nombre {
+    font-size: 1.3em;
+    font-weight: 600;
+}
+
+.ingreso-actualizar-form {
+    margin-bottom: 20px;
+}
+
+.ingreso-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.ingreso-form-group {
+    margin-bottom: 0;
+}
+
+.ingreso-form-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #333;
+}
+
+.ingreso-form-label i {
+    color: #d4a017;
+}
+
+.ingreso-form-input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 1em;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.ingreso-form-input:focus {
+    outline: none;
+    border-color: #d4a017;
+    box-shadow: 0 0 0 3px rgba(212, 160, 23, 0.1);
+}
+
+.readonly-input {
+    background: #f5f5f5;
+    color: #666;
+    cursor: not-allowed;
+}
+
+.ingreso-actualizar-modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.btn-ingreso-actualizar-cancelar,
+.btn-ingreso-actualizar-confirmar {
+    padding: 12px 25px;
+    border: none;
+    border-radius: 10px;
+    font-size: 1em;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.btn-ingreso-actualizar-cancelar {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-ingreso-actualizar-cancelar:hover {
+    background: #5a6268;
+    transform: translateY(-2px);
+}
+
+.btn-ingreso-actualizar-confirmar {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+}
+
+.btn-ingreso-actualizar-confirmar:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+}
+
+.confirm-header {
+    background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%) !important;
+}
+
+.ingreso-confirm-message {
+    background: #fff8e1;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 10px;
+}
+
+.ingreso-confirm-message h4 {
+    margin: 0 0 15px 0;
+    color: #e65100;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ingreso-confirm-changes {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.ingreso-confirm-changes li {
+    padding: 10px 15px;
+    background: white;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ingreso-confirm-changes li:last-child {
+    margin-bottom: 0;
+}
+
+.ingreso-change-label {
+    font-weight: 500;
+    color: #666;
+}
+
+.ingreso-change-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ingreso-old-value {
+    color: #dc3545;
+    text-decoration: line-through;
+    font-size: 0.9em;
+}
+
+.ingreso-new-value {
+    color: #28a745;
+    font-weight: 600;
+}
+
+@media (max-width: 600px) {
+    .ingreso-form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .ingreso-actualizar-modal-actions {
+        flex-direction: column;
+    }
+
+    .btn-ingreso-actualizar-cancelar,
+    .btn-ingreso-actualizar-confirmar {
+        width: 100%;
+        justify-content: center;
+    }
+}
+</style>
+
+
