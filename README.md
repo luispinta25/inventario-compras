@@ -50,9 +50,8 @@ Abrir `http://127.0.0.1:8091/` e iniciar sesión con una cuenta existente del PO
 
 ## Publicación
 
-GitHub Pages publica automáticamente la rama `main` mediante
-`.github/workflows/pages.yml`. El dominio esperado está definido en `CNAME` como
-`inventario.ferrisoluciones.com`.
+GitHub Pages publica automáticamente la raíz de la rama `main`. El dominio
+esperado está definido en `CNAME` como `inventario.ferrisoluciones.com`.
 
 Antes de publicar, verifica que el backend admita exactamente estos orígenes:
 
