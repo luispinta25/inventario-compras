@@ -23,6 +23,12 @@ autorizada y no contiene secretos del servidor.
 - En teléfonos, después del inicio de sesión se fuerza el módulo exclusivo
   `Cargar factura`: solicita permiso de cámara, escanea la clave SRI y guarda el
   XML en la cola. Si el RUC no existe, obliga a vincular un proveedor antes.
+- La detección de teléfono combina `navigator.userAgentData`, tokens de teléfono
+  en el user agent y un respaldo físico estricto (`pointer: coarse` +
+  `hover: none` + pantalla de tamaño real de teléfono). Las tablets y las
+  laptops táctiles reciben la interfaz completa. Ante la duda no se fuerza el
+  módulo. `?vista=escritorio` recupera la interfaz completa en un equipo mal
+  clasificado y lo recuerda; `?vista=auto` revierte esa preferencia.
 - `Pendientes` aparece en escritorio cuando existe al menos un XML por revisar.
   Al abrir uno se bloquea temporalmente para el usuario; al guardar la factura
   se marca como registrado. Solo `admin` puede borrar el documento pendiente y

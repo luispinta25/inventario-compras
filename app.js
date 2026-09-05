@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260905.1';
+const APP_BUILD = '20260905.2';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -57,8 +57,64 @@ let pendingDocumentsTimer = null;
 let scannerControls = null;
 let scannerReader = null;
 let mobileCaptureBusy = false;
-const IS_MOBILE_DEVICE = /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent)
-  || (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) <= 820);
+const DESKTOP_VIEW_OVERRIDE_KEY = 'inventario-compras:vista-escritorio';
+
+function matchMediaMatches(query) {
+  try {
+    return typeof window.matchMedia === 'function' && window.matchMedia(query).matches;
+  } catch (_) {
+    return false;
+  }
+}
+
+// Válvula de escape: `?vista=escritorio` recupera la interfaz completa en un
+// equipo mal clasificado y lo recuerda en ese navegador. `?vista=auto` lo revierte.
+function desktopViewForced() {
+  try {
+    const requested = (new URLSearchParams(window.location.search).get('vista') || '').toLowerCase();
+    if (requested === 'escritorio' || requested === 'desktop') {
+      localStorage.setItem(DESKTOP_VIEW_OVERRIDE_KEY, '1');
+      return true;
+    }
+    if (requested === 'auto' || requested === 'movil' || requested === 'telefono') {
+      localStorage.removeItem(DESKTOP_VIEW_OVERRIDE_KEY);
+      return false;
+    }
+    return localStorage.getItem(DESKTOP_VIEW_OVERRIDE_KEY) === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+// Solo los teléfonos se fuerzan al módulo exclusivo de captura. Las tablets y
+// las laptops táctiles reciben la interfaz completa. El sesgo es conservador:
+// ante la duda se devuelve `false` para no dejar un equipo encerrado en cámara.
+function detectPhoneDevice() {
+  const ua = navigator.userAgent || '';
+  const uaData = navigator.userAgentData;
+  const phoneUa = /iPhone|iPod|Windows Phone|IEMobile|BlackBerry|BB10|Opera Mini|Android.+Mobile|Mobile.+Firefox/i.test(ua);
+
+  // 1. Pista de alta confianza en navegadores Chromium (Android, escritorio).
+  if (uaData && typeof uaData.mobile === 'boolean') {
+    if (uaData.mobile) return true;
+    if (!phoneUa) return false;
+  }
+
+  // 2. Tokens explícitos de teléfono en el user agent (Safari iOS, Firefox…).
+  if (phoneUa) return true;
+
+  // 3. Respaldo físico estricto: entrada táctil primaria, sin mouse y pantalla
+  //    con tamaño real de teléfono. Excluye laptops táctiles (puntero fino,
+  //    con hover) y tablets de 7" o más (lado corto mayor a 500 px CSS).
+  const coarseTouchOnly = matchMediaMatches('(pointer: coarse)') && matchMediaMatches('(hover: none)');
+  const touchCapable = (navigator.maxTouchPoints || 0) > 0;
+  const minSide = Math.min(screen.width || 0, screen.height || 0);
+  const maxSide = Math.max(screen.width || 0, screen.height || 0);
+  const phoneSizedScreen = minSide > 0 && minSide <= 500 && maxSide <= 950;
+  return coarseTouchOnly && touchCapable && phoneSizedScreen;
+}
+
+const IS_MOBILE_DEVICE = !desktopViewForced() && detectPhoneDevice();
 const internalProductLookupCache = new Map();
 const internalProductSearchCache = new Map();
 let internalProductCatalog = [];
