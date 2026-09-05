@@ -81,15 +81,15 @@
           <span>Pendientes</span>
           <strong class="nav-count" id="pendingDocumentsBadge">0</strong>
         </a>
-        <a href="#dashboard" class="module-nav-item" data-app-module="provider-dashboard" title="Dashboard de proveedores">
+        <a href="#dashboard" class="module-nav-item" data-app-module="provider-dashboard" title="Dashboard de proveedores" hidden>
           <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
           <span>Dashboard</span>
         </a>
-        <a href="#facturas" class="module-nav-item" data-app-module="provider-invoices" title="Facturas registradas">
+        <a href="#facturas" class="module-nav-item" data-app-module="provider-invoices" title="Facturas registradas" hidden>
           <i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i>
           <span>Facturas</span>
         </a>
-        <a href="#comparador" class="module-nav-item" data-app-module="provider-comparator" title="Comparador de precios">
+        <a href="#comparador" class="module-nav-item" data-app-module="comparator" title="Comparador de precios">
           <i class="fa-solid fa-scale-balanced" aria-hidden="true"></i>
           <span>Comparador</span>
         </a>
@@ -319,6 +319,84 @@
 
           <p class="product-provider-summary" id="productProviderSummary" aria-live="polite">Carga pendiente.</p>
           <div class="product-provider-results" id="productProviderResults" aria-live="polite"></div>
+        </main>
+      </section>
+
+      <section class="module-panel comparator-panel" data-module-panel="comparator" hidden aria-labelledby="comparatorTitle">
+        <header class="app-header">
+          <div>
+            <p class="product-name">COMPRAS</p>
+            <h1 id="comparatorTitle">Comparador de precios</h1>
+          </div>
+          <div class="mode-status">
+            <span class="status-dot" aria-hidden="true"></span>
+            Cálculo de margen
+          </div>
+        </header>
+
+        <main class="comparator-workspace">
+          <section class="comparator-search-card" aria-label="Buscar producto">
+            <div class="comparator-tax-toggle" role="radiogroup" aria-label="Mostrar precios">
+              <label><input type="radio" name="comparatorTax" value="con" checked> Con IVA (15%)</label>
+              <label><input type="radio" name="comparatorTax" value="sin"> Sin IVA</label>
+            </div>
+            <label class="comparator-search" for="comparatorSearch">
+              <span>Buscar producto</span>
+              <div>
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <input id="comparatorSearch" type="search" maxlength="100" autocomplete="off" placeholder="Código o nombre del producto">
+              </div>
+            </label>
+            <p class="comparator-status" id="comparatorStatus" aria-live="polite"></p>
+            <div class="comparator-results" id="comparatorResults" role="listbox" aria-label="Resultados" hidden></div>
+          </section>
+
+          <section class="comparator-analysis" id="comparatorAnalysis" hidden aria-labelledby="comparatorAnalysisTitle">
+            <div class="section-heading compact">
+              <div>
+                <p class="section-kicker">Análisis</p>
+                <h2 id="comparatorAnalysisTitle">Producto seleccionado</h2>
+              </div>
+              <button type="button" class="button button-secondary" id="comparatorClear">
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                Quitar
+              </button>
+            </div>
+
+            <div class="comparator-grid">
+              <div class="comparator-card">
+                <h3><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Información actual</h3>
+                <dl class="comparator-facts">
+                  <div><dt>Código</dt><dd id="comparatorCode">-</dd></div>
+                  <div><dt>Producto</dt><dd id="comparatorName">-</dd></div>
+                  <div><dt>Proveedor actual</dt><dd id="comparatorProvider">-</dd></div>
+                </dl>
+                <p class="comparator-price-label">Costo actual <span id="comparatorTaxNote"></span></p>
+                <p class="comparator-price" id="comparatorCurrentPrice">$0.00</p>
+              </div>
+
+              <div class="comparator-card">
+                <h3><i class="fa-solid fa-dollar-sign" aria-hidden="true"></i> Nuevo precio</h3>
+                <label class="comparator-new-price-label" for="comparatorNewPrice">Costo del nuevo proveedor</label>
+                <input id="comparatorNewPrice" class="comparator-new-price" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00">
+
+                <div class="comparator-verdict" id="comparatorVerdict" hidden>
+                  <p class="comparator-verdict-message" id="comparatorVerdictMessage"></p>
+                  <div class="comparator-verdict-prices">
+                    <div><span>Costo actual</span><strong id="comparatorVerdictCurrent">$0.00</strong></div>
+                    <div><span>Costo nuevo</span><strong id="comparatorVerdictNew">$0.00</strong></div>
+                  </div>
+                  <div class="comparator-selling">
+                    <p>Precio de venta sugerido (38 % margen + 2 % renta)</p>
+                    <div>
+                      <div><span>Con proveedor actual</span><strong id="comparatorSellingCurrent">$0.00</strong></div>
+                      <div><span>Con nuevo proveedor</span><strong id="comparatorSellingNew">$0.00</strong></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         </main>
       </section>
 

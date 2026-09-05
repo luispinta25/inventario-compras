@@ -539,3 +539,69 @@ body.mobile-capture-only .topbar-session { margin-left: 0; }
 body.mobile-capture-only .user-avatar, body.mobile-capture-only .user-copy { display: none; }
 body.mobile-capture-only .topbar-brand p { display: none; }
 body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height: 34px; }
+
+/* ============ Comparador de precios (módulo nativo) ============ */
+.comparator-panel { min-height: calc(100vh - 63px); }
+.comparator-workspace { width: min(1180px, calc(100% - 32px)); margin: 22px auto 48px; display: grid; gap: 22px; }
+
+.comparator-search-card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+.comparator-tax-toggle { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-bottom: 16px; }
+.comparator-tax-toggle label { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; font-weight: 700; color: #48515a; cursor: pointer; }
+.comparator-tax-toggle input { accent-color: var(--accent-dark); }
+
+.comparator-search span { display: block; margin: 0 0 7px; color: #48515a; font-size: 12px; font-weight: 800; }
+.comparator-search > div { position: relative; }
+.comparator-search i { position: absolute; top: 50%; left: 14px; translate: 0 -50%; color: var(--accent-dark); }
+.comparator-search input { width: 100%; height: 44px; padding: 0 14px 0 40px; border: 1px solid #b9c0c7; border-radius: 6px; background: #fff; color: var(--ink); }
+.comparator-search input:focus { border-color: var(--accent-dark); outline: 2px solid #f4d789; outline-offset: 1px; }
+
+.comparator-status { min-height: 18px; margin: 12px 0 0; color: #59616a; font-size: 12px; font-weight: 700; }
+
+.comparator-results { margin-top: 12px; display: grid; gap: 8px; max-height: 460px; overflow-y: auto; }
+.comparator-empty { margin: 6px 2px; color: var(--muted); font-size: 13px; }
+.comparator-result { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; text-align: left; cursor: pointer; }
+.comparator-result:hover { border-color: var(--accent-dark); background: var(--soft); }
+.comparator-result-info { display: grid; gap: 3px; min-width: 0; }
+.comparator-result-info strong { font-size: 14px; color: var(--ink); }
+.comparator-result-meta { color: var(--muted); font-size: 12px; }
+.comparator-result-price { color: var(--accent-dark); font-size: 12px; font-weight: 750; }
+.comparator-result > i { color: var(--accent-dark); flex: 0 0 auto; }
+
+.comparator-analysis { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+.comparator-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.comparator-card { border: 1px solid var(--line); border-radius: 10px; padding: 18px; background: var(--soft); }
+.comparator-card h3 { margin: 0 0 14px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.comparator-card h3 i { color: var(--accent-dark); }
+.comparator-facts { margin: 0 0 16px; display: grid; gap: 10px; }
+.comparator-facts div { display: grid; gap: 2px; }
+.comparator-facts dt { color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; }
+.comparator-facts dd { margin: 0; color: var(--ink); font-size: 14px; font-weight: 700; }
+.comparator-price-label { margin: 0 0 4px; color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; }
+.comparator-price { margin: 0; font-size: 26px; font-weight: 850; color: var(--accent-dark); }
+
+.comparator-new-price-label { display: block; margin: 0 0 8px; color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; }
+.comparator-new-price { width: 100%; height: 52px; padding: 0 16px; border: 2px solid #9ea6ae; border-radius: 6px; background: #fff; color: var(--ink); font-size: 20px; font-weight: 750; }
+.comparator-new-price:focus { border-color: var(--accent-dark); outline: none; }
+
+.comparator-verdict { margin-top: 18px; padding: 16px; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
+.comparator-verdict.is-better { border-color: #9ed6b4; background: var(--green-soft); }
+.comparator-verdict.is-worse { border-color: #eab3ad; background: var(--red-soft); }
+.comparator-verdict.is-equal { border-color: var(--line); background: var(--soft); }
+.comparator-verdict-message { margin: 0 0 14px; font-size: 18px; font-weight: 850; }
+.comparator-verdict.is-better .comparator-verdict-message { color: var(--green); }
+.comparator-verdict.is-worse .comparator-verdict-message { color: var(--red); }
+.comparator-verdict-prices, .comparator-selling > div { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.comparator-verdict-prices div, .comparator-selling > div div { padding: 10px; border-radius: 8px; background: rgba(255, 255, 255, .7); text-align: center; }
+.comparator-verdict-prices span, .comparator-selling > div span { display: block; color: var(--muted); font-size: 11px; font-weight: 750; margin-bottom: 4px; }
+.comparator-verdict-prices strong, .comparator-selling > div strong { font-size: 17px; font-weight: 800; color: var(--ink); }
+.comparator-selling { margin-top: 14px; }
+.comparator-selling > p { margin: 0 0 8px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.comparator-selling strong.is-better { color: var(--green); }
+.comparator-selling strong.is-worse { color: var(--red); }
+
+@media (max-width: 720px) {
+  .comparator-workspace { width: min(100% - 20px, 1180px); }
+  .comparator-tax-toggle { justify-content: stretch; }
+  .comparator-tax-toggle label { flex: 1 1 auto; justify-content: center; }
+  .comparator-grid { grid-template-columns: 1fr; }
+}

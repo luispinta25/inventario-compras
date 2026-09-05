@@ -1,12 +1,13 @@
 'use strict';
 
-const CACHE_NAME = 'ferrisoluciones-inventario-0.2.0-20260905.2';
+const CACHE_NAME = 'ferrisoluciones-inventario-0.2.0-20260905.3';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/styles.css',
   '/provider-base.css',
   '/app.js',
+  '/js/comparador.js',
   '/version.json',
   '/manifest.webmanifest',
   '/img/brand/ferrisoluciones.png',

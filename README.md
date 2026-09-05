@@ -36,16 +36,26 @@ autorizada y no contiene secretos del servidor.
 - Navegación superior con módulos independientes.
 - `Ingresar facturas`: consulta la clave/XML, vincula el proveedor por RUC y
   continúa en el formulario tradicional con proveedor y datos básicos precargados.
-- `Dashboard`, `Facturas` y `Comparador`: módulos superiores independientes
-  respaldados por la copia local del módulo de Proveedores del POS.
+- `Comparador`: módulo nativo (`js/comparador.js`). Busca un producto por el
+  backend (`GET /api/purchases/v2/inventory/search`), muestra costo y proveedor
+  actual, y calcula el ahorro y el precio de venta sugerido (38 % margen + 2 %
+  renta) frente a un costo hipotético de otro proveedor. Solo lectura; sin
+  manejadores en línea ni acceso directo a Supabase.
+- `Dashboard` y `Facturas`: ocultos por ahora. Eran copias del módulo de
+  Proveedores del POS y quedaron inservibles bajo la CSP estricta (arranque por
+  `<script>` en línea bloqueado). Se reconstruirán como módulos nativos, uno por
+  vez, antes de volver a mostrarse.
 - `Productos y proveedores`: consulta de solo lectura, protegida por el
   backend, que agrupa las alternativas de compra por SKU interno. Muestra alias
   y códigos del proveedor, costo neto, presentación, múltiplos y plazo cuando
   estén registrados. No permite editar ni generar pedidos en esta fase.
 
-El módulo original de Proveedores continúa intacto en el POS de producción. La
-copia vive en `views/` y `js/` dentro de esta aplicación para permitir una
-migración gradual.
+`views/proveedores.html` y `views/comparador.html` son copias del POS y ya no se
+cargan. `views/ingreso-factura.html` todavía lo abre el botón `Continuar
+ingreso`, pero su arranque por `<script>` en línea está bloqueado por la CSP
+estricta: ese paso queda pendiente de reconstrucción nativa. Todas las copias se
+conservan como referencia. El módulo original de Proveedores continúa intacto en
+el POS de producción.
 
 La identidad legal del proveedor se guarda en `ruc` y `razon_social`. El campo
 `empresa` permanece como alias o nombre comercial.

@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260905.2';
+const APP_BUILD = '20260905.3';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -329,9 +329,7 @@ function moduleFromHash() {
   if (IS_MOBILE_DEVICE) return 'mobile-capture';
   return {
     '#ingreso-facturas': 'invoice-import',
-    '#dashboard': 'provider-dashboard',
-    '#facturas': 'provider-invoices',
-    '#comparador': 'provider-comparator',
+    '#comparador': 'comparator',
     '#producto-proveedores': 'product-providers',
     '#pendientes': 'pending-documents',
     '#cargar-factura': 'mobile-capture'
@@ -510,6 +508,26 @@ function resetProviderModule() {
   document.querySelector('script[src="js/ingreso-factura.js"]')?.remove();
 }
 
+let comparatorModuleRequest = null;
+
+function loadComparatorModule() {
+  if (typeof window.initComparador === 'function') return Promise.resolve();
+  if (comparatorModuleRequest) return comparatorModuleRequest;
+  comparatorModuleRequest = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'js/comparador.js';
+    script.dataset.module = 'comparator';
+    script.onload = () => resolve();
+    script.onerror = () => {
+      comparatorModuleRequest = null;
+      script.remove();
+      reject(new Error('No se pudo cargar el comparador.'));
+    };
+    document.body.appendChild(script);
+  });
+  return comparatorModuleRequest;
+}
+
 async function switchAppModule(moduleName) {
   if (IS_MOBILE_DEVICE && moduleName !== 'mobile-capture') {
     moduleName = 'mobile-capture';
@@ -518,8 +536,7 @@ async function switchAppModule(moduleName) {
   const providerModes = {
     'provider-dashboard': 'dashboard',
     'provider-invoices': 'facturas',
-    'provider-entry': 'productos',
-    'provider-comparator': 'comparador'
+    'provider-entry': 'productos'
   };
   const providerMode = providerModes[moduleName];
   document.querySelectorAll('[data-module-panel]').forEach((panel) => {
@@ -542,6 +559,9 @@ async function switchAppModule(moduleName) {
     elements.accessKeyInput.focus();
   } else if (moduleName === 'product-providers') {
     await loadProductProviders();
+  } else if (moduleName === 'comparator') {
+    await loadComparatorModule();
+    await window.initComparador();
   } else if (moduleName === 'pending-documents') {
     await loadPendingDocuments();
   } else if (moduleName === 'mobile-capture') {
