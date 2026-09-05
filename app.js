@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260905.4';
+const APP_BUILD = '20260905.6';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -36,7 +36,9 @@ const elements = Object.fromEntries([
   'mobileCaptureStatus', 'mobileInvoiceSummary', 'mobileInvoiceState',
   'mobileInvoiceProvider', 'mobileInvoiceTaxId', 'mobileInvoiceNumber',
   'mobileInvoiceItems', 'mobileInvoiceTotal', 'mobileLinkProviderButton',
-  'mobileScanAnotherButton'
+  'mobileScanAnotherButton', 'ocrPickCamera', 'ocrPickGallery', 'ocrKeyFileCamera',
+  'ocrKeyFileGallery', 'ocrCrop', 'ocrCropStage', 'ocrCropImage', 'ocrCropBand',
+  'ocrCropCancel', 'ocrCropRun'
 ].map((id) => [id, document.getElementById(id)]));
 
 let currentDraft = null;
@@ -286,6 +288,10 @@ window.app = {
     preload: preloadInternalProductCatalog,
     get: () => internalProductCatalog,
     rank: rankInternalProductMatches
+  },
+  accessKey: {
+    resolveFromText: resolveAccessKeyFromText,
+    isValid: isValidAccessKey
   }
 };
 window.clearInvoiceIntakeCache = clearInvoiceIntakeCache;
@@ -981,6 +987,7 @@ function updateMobileKeyState() {
 
 function resetMobileCapture() {
   stopScanner();
+  closeOcrCrop();
   currentDraft = null;
   providerLinkContinuation = null;
   elements.mobileAccessKeyInput.value = '';
@@ -1028,12 +1035,195 @@ async function captureMobileDocument() {
   }
 }
 
+// --- OCR de la clave (respaldo cuando la factura no trae código de barras) ---
+// Solo móvil. El escáner sigue siendo la vía principal. Todo ocurre en el
+// teléfono; la foto no se sube a ningún servidor.
+const OCR_MAX_IMAGE_DIM = 2200; // se reduce la foto antes de procesarla para no agotar la memoria del navegador
+const OCR_MAX_FILE_BYTES = 30 * 1024 * 1024;
+const OCR_TIMEOUT_MS = 45000;
+let ocrModuleRequest = null;
+let ocrSource = null;          // canvas ya reducido que se pasa al OCR
+let ocrBand = { top: 0.42, height: 0.16 };
+let ocrBandDrag = null;
+let ocrBusy = false;
+
+function loadOcrModule() {
+  if (window.ocrClave) return Promise.resolve();
+  if (ocrModuleRequest) return ocrModuleRequest;
+  ocrModuleRequest = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'js/ocr-clave.js';
+    script.onload = () => resolve();
+    script.onerror = () => { ocrModuleRequest = null; script.remove(); reject(new Error('No se pudo cargar el lector de clave.')); };
+    document.body.appendChild(script);
+  });
+  return ocrModuleRequest;
+}
+
+function renderOcrBand() {
+  const style = elements.ocrCropBand.style;
+  style.top = `${(ocrBand.top * 100).toFixed(2)}%`;
+  style.height = `${(ocrBand.height * 100).toFixed(2)}%`;
+}
+
+function closeOcrCrop() {
+  elements.ocrCrop.hidden = true;
+  const previous = elements.ocrCropImage.getAttribute('src');
+  if (previous && previous.startsWith('blob:')) URL.revokeObjectURL(previous);
+  elements.ocrCropImage.removeAttribute('src');
+  ocrSource = null;
+  ocrBandDrag = null;
+  elements.ocrKeyFileCamera.value = '';
+  elements.ocrKeyFileGallery.value = '';
+}
+
+function loadImageElement(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('No se pudo abrir la foto.'));
+    image.src = url;
+  });
+}
+
+// Reduce la foto a un tamaño manejable y la deja lista tanto para previsualizar
+// como para el OCR. Evita canvas gigantes que reinician la pestaña del navegador.
+function downscaleToCanvas(image) {
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  if (!width || !height) throw new Error('La foto no se pudo leer.');
+  const factor = Math.min(1, OCR_MAX_IMAGE_DIM / Math.max(width, height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(width * factor));
+  canvas.height = Math.max(1, Math.round(height * factor));
+  const context = canvas.getContext('2d');
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+async function openOcrCropFromFile(file) {
+  if (!file) return;
+  if (!file.type || !file.type.startsWith('image/')) throw new Error('Elige un archivo de imagen.');
+  if (file.size > OCR_MAX_FILE_BYTES) throw new Error('La foto es demasiado grande. Toma una con menos resolución.');
+  stopScanner();
+  const url = URL.createObjectURL(file);
+  let canvas;
+  try {
+    const image = await loadImageElement(url);
+    canvas = downscaleToCanvas(image);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+  const previousSrc = elements.ocrCropImage.getAttribute('src');
+  if (previousSrc && previousSrc.startsWith('blob:')) URL.revokeObjectURL(previousSrc);
+  elements.ocrCropImage.src = canvas.toDataURL('image/jpeg', 0.85);
+  ocrSource = canvas;
+  ocrBand = { top: 0.42, height: 0.16 };
+  renderOcrBand();
+  elements.ocrCrop.hidden = false;
+  elements.ocrCrop.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setMobileStatus('Ajusta el recuadro sobre la clave y toca Leer.');
+  loadOcrModule().then(() => window.ocrClave?.warmup?.()).catch(() => {});
+}
+
+function beginOcrBandDrag(event) {
+  const edge = event.target?.dataset?.edge || 'move';
+  ocrBandDrag = {
+    edge,
+    startY: event.clientY,
+    startTop: ocrBand.top,
+    startHeight: ocrBand.height,
+    stageHeight: elements.ocrCropStage.getBoundingClientRect().height || 1
+  };
+  elements.ocrCropBand.setPointerCapture?.(event.pointerId);
+  event.preventDefault();
+}
+
+function moveOcrBandDrag(event) {
+  if (!ocrBandDrag) return;
+  const delta = (event.clientY - ocrBandDrag.startY) / ocrBandDrag.stageHeight;
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  if (ocrBandDrag.edge === 'move') {
+    ocrBand.top = clamp(ocrBandDrag.startTop + delta, 0, 1 - ocrBand.height);
+  } else if (ocrBandDrag.edge === 'top') {
+    const nextTop = clamp(ocrBandDrag.startTop + delta, 0, ocrBandDrag.startTop + ocrBandDrag.startHeight - 0.04);
+    ocrBand.height = ocrBandDrag.startHeight + (ocrBandDrag.startTop - nextTop);
+    ocrBand.top = nextTop;
+  } else {
+    ocrBand.height = clamp(ocrBandDrag.startHeight + delta, 0.04, 1 - ocrBand.top);
+  }
+  renderOcrBand();
+}
+
+function endOcrBandDrag() { ocrBandDrag = null; }
+
+async function runOcrRead() {
+  if (!ocrSource || ocrBusy) return;
+  ocrBusy = true;
+  elements.ocrCropRun.disabled = true;
+  elements.ocrCropCancel.disabled = true;
+  setMobileStatus('Leyendo la clave…', 'loading');
+  try {
+    await loadOcrModule();
+    const sourceHeight = ocrSource.height;
+    const sourceWidth = ocrSource.width;
+    const pad = 0.02;
+    const y = Math.max(0, (ocrBand.top - pad) * sourceHeight);
+    const h = Math.min(sourceHeight - y, (ocrBand.height + pad * 2) * sourceHeight);
+    const hit = await Promise.race([
+      window.ocrClave.run(ocrSource, { x: 0, y, w: sourceWidth, h }),
+      new Promise((_, reject) => window.setTimeout(() => reject(new Error('La lectura tardó demasiado. Inténtalo de nuevo con más luz o escríbela.')), OCR_TIMEOUT_MS))
+    ]);
+    if (!hit) {
+      setMobileStatus('No se pudo leer la clave con claridad. Ajusta el recuadro, mejora la luz o escríbela.', 'error');
+      return;
+    }
+    elements.mobileAccessKeyInput.value = hit.key;
+    updateMobileKeyState();
+    closeOcrCrop();
+    setMobileStatus(hit.confidence === 'alta'
+      ? 'Clave leída. Verifícala contra el papel y toca Consultar y guardar.'
+      : 'Clave reconstruida a partir de la foto. Revísala dígito por dígito antes de continuar.', 'warning');
+  } catch (error) {
+    setMobileStatus(error.message || 'No fue posible leer la clave.', 'error');
+  } finally {
+    ocrBusy = false;
+    elements.ocrCropRun.disabled = false;
+    elements.ocrCropCancel.disabled = false;
+  }
+}
+
+function pickOcrImage(input) {
+  input.value = '';
+  input.click();
+}
+
 elements.startScannerButton.addEventListener('click', startScanner);
 elements.stopScannerButton.addEventListener('click', stopScanner);
 elements.mobileAccessKeyInput.addEventListener('input', updateMobileKeyState);
 elements.mobileCaptureButton.addEventListener('click', captureMobileDocument);
 elements.mobileLinkProviderButton.addEventListener('click', openProviderLinking);
 elements.mobileScanAnotherButton.addEventListener('click', resetMobileCapture);
+elements.ocrPickCamera.addEventListener('click', () => pickOcrImage(elements.ocrKeyFileCamera));
+elements.ocrPickGallery.addEventListener('click', () => pickOcrImage(elements.ocrKeyFileGallery));
+function handleOcrFileChange(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  openOcrCropFromFile(file).catch((error) => {
+    closeOcrCrop();
+    setMobileStatus(error.message || 'No se pudo abrir la foto.', 'error');
+  });
+}
+elements.ocrKeyFileCamera.addEventListener('change', handleOcrFileChange);
+elements.ocrKeyFileGallery.addEventListener('change', handleOcrFileChange);
+elements.ocrCropCancel.addEventListener('click', () => { if (!ocrBusy) { closeOcrCrop(); setMobileStatus(''); } });
+elements.ocrCropRun.addEventListener('click', runOcrRead);
+elements.ocrCropBand.addEventListener('pointerdown', beginOcrBandDrag);
+elements.ocrCropBand.addEventListener('pointermove', moveOcrBandDrag);
+elements.ocrCropBand.addEventListener('pointerup', endOcrBandDrag);
+elements.ocrCropBand.addEventListener('pointercancel', endOcrBandDrag);
+elements.ocrCropBand.addEventListener('lostpointercapture', endOcrBandDrag);
+elements.ocrCropBand.addEventListener('pointercancel', endOcrBandDrag);
 
 document.querySelectorAll('[data-app-module]').forEach((item) => {
   item.addEventListener('click', async (event) => {
@@ -1529,6 +1719,132 @@ function isValidAccessKey(value) {
     && calculateCheckDigit(value.slice(0, 48)) === Number(value[48])
     && value.slice(8, 10) === '01'
     && ['1', '2'].includes(value[23]);
+}
+
+// La clave tiene una estructura fija; se aprovecha para descartar números
+// sueltos y para corregir un dígito mal leído por OCR usando datos que también
+// están impresos aparte (RUC, número de factura).
+function hasPlausibleAccessKeyShape(value) {
+  if (!/^\d{49}$/.test(value)) return false;
+  if (value.slice(8, 10) !== '01') return false;
+  if (!['1', '2'].includes(value[23])) return false;
+  if (value[47] !== '1') return false;
+  const day = Number(value.slice(0, 2));
+  const month = Number(value.slice(2, 4));
+  const year = Number(value.slice(4, 8));
+  return day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 2020 && year <= 2035;
+}
+
+function hammingDistance(a, b) {
+  if (a.length !== b.length) return Infinity;
+  let distance = 0;
+  for (let index = 0; index < a.length; index += 1) if (a[index] !== b[index]) distance += 1;
+  return distance;
+}
+
+// Devuelve { key, snapped } tras encajar RUC / serie / secuencial leídos aparte,
+// solo cuando el candidato ya está muy cerca (a lo sumo 2 dígitos de diferencia).
+function snapAccessKeyFields(key, hints = {}) {
+  const chars = key.split('');
+  let snapped = false;
+  const place = (start, digits, width) => {
+    if (!digits || !new RegExp(`^\\d{${width}}$`).test(digits)) return;
+    const current = key.slice(start, start + width);
+    if (current === digits || hammingDistance(current, digits) > 2) return;
+    for (let index = 0; index < width; index += 1) chars[start + index] = digits[index];
+    snapped = true;
+  };
+  place(10, hints.ruc, 13);
+  place(24, hints.serie, 6);
+  place(30, hints.secuencial, 9);
+  if (!snapped) return { key, snapped: false };
+  const first48 = chars.slice(0, 48).join('');
+  chars[48] = String(calculateCheckDigit(first48));
+  return { key: chars.join(''), snapped: true };
+}
+
+function accessKeyHintsFromText(text) {
+  const clean = String(text || '');
+  const hints = {};
+  const factura = clean.match(/(\d{3})\s*-\s*(\d{3})\s*-\s*(\d{6,9})/);
+  if (factura) {
+    hints.serie = factura[1] + factura[2];
+    hints.secuencial = factura[3].padStart(9, '0').slice(-9);
+  }
+  const ruc = clean.match(/\b(\d{13})\b/);
+  if (ruc) hints.ruc = ruc[1];
+  return hints;
+}
+
+// Reconstruye la clave de acceso a partir del texto crudo de un OCR.
+// `hints` puede traer ruc / serie / secuencial leídos por separado.
+// Devuelve { key, confidence: 'alta' | 'media' } o null.
+function resolveAccessKeyFromText(rawText, hints = {}) {
+  const text = String(rawText || '');
+  const merged = { ...accessKeyHintsFromText(text), ...hints };
+
+  // Solo tramos de dígitos de UNA misma línea: la clave se imprime seguida.
+  // No se concatena entre líneas ni se recorre todo el texto: eso genera
+  // ventanas de 49 dígitos que pasan el verificador por pura casualidad.
+  const runs = [];
+  for (const line of text.split(/[\r\n]+/)) {
+    const compactLine = line.replace(/[^\d]/g, '');
+    if (compactLine.length >= 44) runs.push(compactLine);
+    for (const token of line.match(/\d[\d -]*\d|\d/g) || []) {
+      const digits = token.replace(/\D+/g, '');
+      if (digits.length >= 44 && !runs.includes(digits)) runs.push(digits);
+    }
+  }
+
+  const candidates = new Map(); // key -> 'clean' | 'windowed'
+  const addCandidate = (key, kind) => {
+    if (!/^\d{49}$/.test(key)) return;
+    if (candidates.get(key) !== 'clean') candidates.set(key, kind);
+  };
+  for (const run of runs) {
+    if (run.length === 49) addCandidate(run, 'clean');
+    if (run.length === 48) addCandidate(run + calculateCheckDigit(run), 'clean');
+    if (run.length > 49 && run.length <= 60) {
+      for (let index = 0; index + 49 <= run.length; index += 1) addCandidate(run.slice(index, index + 49), 'windowed');
+      for (let index = 0; index + 48 <= run.length; index += 1) {
+        const head = run.slice(index, index + 48);
+        addCandidate(head + calculateCheckDigit(head), 'windowed');
+      }
+    }
+  }
+
+  const isConsistentWithHints = (key) =>
+    (!merged.ruc || key.slice(10, 23) === merged.ruc)
+    && (!merged.serie || key.slice(24, 30) === merged.serie)
+    && (!merged.secuencial || key.slice(30, 39) === merged.secuencial);
+
+  const hasHints = Boolean(merged.serie || merged.secuencial || merged.ruc);
+  const validKeys = [...candidates.keys()].filter((candidate) => isValidAccessKey(candidate));
+  const cleanValid = validKeys.filter((key) => candidates.get(key) === 'clean' && hasPlausibleAccessKeyShape(key));
+
+  // 1. Clave válida leída de una línea completa y, si hay datos aparte, que cuadre con ellos.
+  const cleanExact = cleanValid.find((key) => !hasHints || isConsistentWithHints(key));
+  if (cleanExact) return { key: cleanExact, confidence: 'alta' };
+
+  // 2. Clave (aunque venga con dígitos de etiqueta pegados) que cuadra con el RUC o el número de factura.
+  if (hasHints) {
+    const hintExact = validKeys.find(isConsistentWithHints);
+    if (hintExact) return { key: hintExact, confidence: 'alta' };
+  }
+
+  // 3. Un candidato muy cercano que, al encajar RUC / serie / secuencial, queda válido.
+  for (const candidate of candidates.keys()) {
+    const { key: fixed, snapped } = snapAccessKeyFields(candidate, merged);
+    if (snapped && hasPlausibleAccessKeyShape(fixed) && isValidAccessKey(fixed) && isConsistentWithHints(fixed)) {
+      return { key: fixed, confidence: 'media' };
+    }
+  }
+
+  // 4. Sin datos con que contrastar: se devuelve para revisión manual.
+  if (cleanValid.length === 1 && !hasHints) return { key: cleanValid[0], confidence: 'media' };
+  const anyValid = cleanValid[0] || validKeys[0];
+  if (anyValid) return { key: anyValid, confidence: 'media' };
+  return null;
 }
 
 function updateKeyState() {

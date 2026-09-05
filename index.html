@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="robots" content="noindex, nofollow, noarchive">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://api.ferrisoluciones.com https://lpsupabase.luispintasolutions.com wss://lpsupabase.luispintasolutions.com; worker-src 'self' blob:">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' blob: 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' data: https://api.ferrisoluciones.com https://lpsupabase.luispintasolutions.com wss://lpsupabase.luispintasolutions.com; worker-src 'self' blob:">
   <title>Inventario y Compras | Ferrisoluciones</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/vendor/fontawesome/css/all-6.5.2.min.css">
@@ -439,6 +439,38 @@
               <i class="fa-solid fa-stop" aria-hidden="true"></i>
               Detener cámara
             </button>
+
+            <p class="scanner-alt-hint">¿La factura no tiene código de barras? Lee la clave desde una foto.</p>
+            <div class="ocr-source-pick">
+              <button type="button" class="button button-secondary" id="ocrPickCamera">
+                <i class="fa-solid fa-camera" aria-hidden="true"></i>
+                Tomar foto
+              </button>
+              <button type="button" class="button button-secondary" id="ocrPickGallery">
+                <i class="fa-solid fa-images" aria-hidden="true"></i>
+                Elegir de galería
+              </button>
+            </div>
+            <input id="ocrKeyFileCamera" type="file" accept="image/*" capture="environment" hidden>
+            <input id="ocrKeyFileGallery" type="file" accept="image/*" hidden>
+
+            <div class="ocr-crop" id="ocrCrop" hidden>
+              <p class="ocr-crop-hint">Coloca el recuadro sobre la línea de la <strong>CLAVE DE ACCESO</strong> (o de <strong>AUTORIZACIÓN</strong>) y toca Leer.</p>
+              <div class="ocr-crop-stage" id="ocrCropStage">
+                <img id="ocrCropImage" alt="Foto de la factura">
+                <div class="ocr-crop-band" id="ocrCropBand" role="slider" aria-label="Recuadro sobre la clave" tabindex="0">
+                  <span class="ocr-crop-grip ocr-crop-grip-top" data-edge="top" aria-hidden="true"></span>
+                  <span class="ocr-crop-grip ocr-crop-grip-bottom" data-edge="bottom" aria-hidden="true"></span>
+                </div>
+              </div>
+              <div class="ocr-crop-actions">
+                <button type="button" class="button button-secondary" id="ocrCropCancel">Cancelar</button>
+                <button type="button" class="button button-primary" id="ocrCropRun">
+                  <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+                  Leer
+                </button>
+              </div>
+            </div>
 
             <div class="mobile-manual-entry">
               <label for="mobileAccessKeyInput">Clave de acceso</label>
