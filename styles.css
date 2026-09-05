@@ -630,3 +630,19 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .mobile-invoice-items li:last-child { border-bottom: 0; }
 .mobile-invoice-item-name { font-size: 13px; font-weight: 750; color: var(--ink); overflow-wrap: anywhere; }
 .mobile-invoice-item-meta { font-size: 12px; font-weight: 700; color: var(--muted); }
+
+/* ============ Diálogo de confirmación propio (nunca window.confirm) ============ */
+.app-dialog { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(12, 14, 18, 0.55); }
+.app-dialog-box { width: min(420px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 22px; box-shadow: 0 20px 60px rgba(10, 12, 16, 0.35); }
+.app-dialog-box p { margin: 0 0 20px; color: var(--ink); font-size: 15px; font-weight: 650; line-height: 1.45; }
+.app-dialog-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.app-dialog-actions .button { min-width: 110px; }
+.button-danger { background: var(--red); border-color: #8f1c14; color: #fff; }
+.button-danger:hover { background: #c62f23; }
+@media (max-width: 480px) {
+  .app-dialog-actions { flex-direction: column-reverse; }
+  .app-dialog-actions .button { width: 100%; }
+}
+
+.ocr-crop-toolbar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.ocr-crop-toolbar .button { min-height: 40px; }

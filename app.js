@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260905.8';
+const APP_BUILD = '20260905.9';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -39,8 +39,45 @@ const elements = Object.fromEntries([
   'mobileLinkProviderButton', 'mobileScanAnotherButton',
   'ocrPickCamera', 'ocrPickGallery', 'ocrKeyFileCamera',
   'ocrKeyFileGallery', 'ocrCrop', 'ocrCropStage', 'ocrCropImage', 'ocrCropBand',
-  'ocrCropCancel', 'ocrCropRun'
+  'ocrCropCancel', 'ocrCropRun', 'ocrRotateButton',
+  'appDialog', 'appDialogText', 'appDialogCancel', 'appDialogConfirm'
 ].map((id) => [id, document.getElementById(id)]));
+
+// Diálogo de confirmación propio, basado en promesas. Nunca window.confirm.
+function askConfirm(message, { confirmText = 'Aceptar', cancelText = 'Cancelar', danger = false } = {}) {
+  return new Promise((resolve) => {
+    elements.appDialogText.textContent = message;
+    elements.appDialogConfirm.textContent = confirmText;
+    elements.appDialogCancel.hidden = cancelText === null;
+    if (cancelText !== null) elements.appDialogCancel.textContent = cancelText;
+    elements.appDialogConfirm.classList.toggle('button-danger', danger);
+    elements.appDialog.hidden = false;
+    elements.appDialogConfirm.focus();
+    const finish = (value) => {
+      elements.appDialog.hidden = true;
+      elements.appDialogConfirm.removeEventListener('click', onOk);
+      elements.appDialogCancel.removeEventListener('click', onCancel);
+      elements.appDialog.removeEventListener('mousedown', onBackdrop);
+      document.removeEventListener('keydown', onKey, true);
+      resolve(value);
+    };
+    const onOk = () => finish(true);
+    const onCancel = () => finish(false);
+    const onBackdrop = (event) => { if (event.target === elements.appDialog) finish(false); };
+    const onKey = (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); finish(false); }
+      else if (event.key === 'Enter') { event.preventDefault(); finish(true); }
+    };
+    elements.appDialogConfirm.addEventListener('click', onOk);
+    elements.appDialogCancel.addEventListener('click', onCancel);
+    elements.appDialog.addEventListener('mousedown', onBackdrop);
+    document.addEventListener('keydown', onKey, true);
+  });
+}
+
+function askAlert(message) {
+  return askConfirm(message, { confirmText: 'Entendido', cancelText: null });
+}
 
 let currentDraft = null;
 let currentSession = null;
@@ -145,10 +182,11 @@ const internalProductSearchCache = new Map();
 let internalProductCatalog = [];
 let internalProductCatalogRequest = null;
 const INTERNAL_PRODUCT_CACHE_KEY = 'inventario-compras:catalogo:v2';
-const INVOICE_DRAFT_CACHE_KEY = 'inventario-compras:factura-borrador:v1';
+const INVOICE_DRAFTS_KEY = 'inventario-compras:borradores:v1';
 const INVOICE_FLOW_CACHE_KEY = 'inventario-compras:factura-flujo:v1';
 const LEGACY_INVOICE_CACHE_KEY = 'ingresoFacturaCache';
 const INVOICE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_STASHED_DRAFTS = 12;
 const XML_GAIN_OPTIONS = [20, 28, 30, 35, 38, 45, 50];
 let invoiceDraftSaveTimer = null;
 
@@ -168,21 +206,76 @@ function readLocalCache(key) {
   }
 }
 
-function saveInvoiceDraftNow() {
-  window.clearTimeout(invoiceDraftSaveTimer);
-  invoiceDraftSaveTimer = null;
-  if (!currentDraft || !currentSession?.user?.id) return;
+// Varias facturas pueden estar a medio revisar a la vez. El avance de cada una
+// (marcas de recepción, notas, vínculos internos) se guarda por clave de acceso,
+// así cambiar a otra factura no pierde el trabajo de la anterior.
+function readDraftStore() {
+  const cached = readLocalCache(INVOICE_DRAFTS_KEY);
+  const drafts = (cached && typeof cached.drafts === 'object' && cached.drafts) || {};
+  const now = Date.now();
+  let changed = false;
+  for (const [key, entry] of Object.entries(drafts)) {
+    if (!entry?.draft || !Number.isFinite(Number(entry.savedAt)) || now - Number(entry.savedAt) > INVOICE_CACHE_TTL_MS) {
+      delete drafts[key];
+      changed = true;
+    }
+  }
+  if (changed) writeDraftStore(drafts);
+  return drafts;
+}
+
+function writeDraftStore(drafts) {
+  if (!currentSession?.user?.id) return;
+  const entries = Object.entries(drafts)
+    .sort((a, b) => Number(b[1].savedAt) - Number(a[1].savedAt))
+    .slice(0, MAX_STASHED_DRAFTS);
   try {
-    localStorage.setItem(INVOICE_DRAFT_CACHE_KEY, JSON.stringify({
+    localStorage.setItem(INVOICE_DRAFTS_KEY, JSON.stringify({
       version: 1,
       savedAt: Date.now(),
       userId: currentSession.user.id,
-      draft: currentDraft,
-      pendingDocumentId: currentPendingDocumentId
+      drafts: Object.fromEntries(entries)
     }));
   } catch (error) {
     console.warn('[inventario-compras] No se pudo guardar el borrador:', error.message);
   }
+}
+
+function getStashedDraft(accessKey) {
+  if (!accessKey) return null;
+  return readDraftStore()[accessKey] || null;
+}
+
+function forgetDraftForKey(accessKey) {
+  if (!accessKey) return;
+  const drafts = readDraftStore();
+  if (drafts[accessKey]) {
+    delete drafts[accessKey];
+    writeDraftStore(drafts);
+  }
+}
+
+function latestStashedDraft() {
+  const drafts = readDraftStore();
+  let best = null;
+  for (const entry of Object.values(drafts)) {
+    if (!best || Number(entry.savedAt) > Number(best.savedAt)) best = entry;
+  }
+  return best;
+}
+
+function saveInvoiceDraftNow() {
+  window.clearTimeout(invoiceDraftSaveTimer);
+  invoiceDraftSaveTimer = null;
+  const accessKey = currentDraft?.tax_information?.access_key;
+  if (!accessKey || !currentSession?.user?.id) return;
+  const drafts = readDraftStore();
+  drafts[accessKey] = {
+    savedAt: Date.now(),
+    draft: currentDraft,
+    pendingDocumentId: currentPendingDocumentId
+  };
+  writeDraftStore(drafts);
 }
 
 function scheduleInvoiceDraftSave() {
@@ -203,11 +296,24 @@ function markManualInvoiceFlow() {
   } catch (_) { /* La restauración es auxiliar si el almacenamiento está lleno. */ }
 }
 
+// Solo olvida la factura que se está cerrando ahora; las demás a medio revisar
+// se conservan.
 function clearInvoiceIntakeCache() {
   window.clearTimeout(invoiceDraftSaveTimer);
   invoiceDraftSaveTimer = null;
+  forgetDraftForKey(currentDraft?.tax_information?.access_key);
   try {
-    localStorage.removeItem(INVOICE_DRAFT_CACHE_KEY);
+    localStorage.removeItem(INVOICE_FLOW_CACHE_KEY);
+    localStorage.removeItem(LEGACY_INVOICE_CACHE_KEY);
+  } catch (_) { /* No debe bloquear el flujo principal. */ }
+}
+
+// Borrado total (cierre de sesión).
+function clearAllInvoiceDrafts() {
+  window.clearTimeout(invoiceDraftSaveTimer);
+  invoiceDraftSaveTimer = null;
+  try {
+    localStorage.removeItem(INVOICE_DRAFTS_KEY);
     localStorage.removeItem(INVOICE_FLOW_CACHE_KEY);
     localStorage.removeItem(LEGACY_INVOICE_CACHE_KEY);
   } catch (_) { /* No debe bloquear el flujo principal. */ }
@@ -220,7 +326,7 @@ function hasRestorableManualInvoice() {
 }
 
 async function restoreInvoiceDraft() {
-  const cached = readLocalCache(INVOICE_DRAFT_CACHE_KEY);
+  const cached = latestStashedDraft();
   if (!cached?.draft) return false;
   elements.accessKeyInput.value = cached.draft.tax_information?.access_key || '';
   currentPendingDocumentId = cached.pendingDocumentId || null;
@@ -487,7 +593,7 @@ elements.logoutButton.addEventListener('click', async () => {
     await releaseCurrentPendingDocument();
     await db.auth.signOut();
   } finally {
-    clearInvoiceIntakeCache();
+    clearAllInvoiceDrafts();
     resetInvoice({ release: false });
     resetProviderModule();
     switchAppModule('invoice-import');
@@ -777,14 +883,15 @@ productProviderElements.productProviderResults.addEventListener('click', async (
   const button = event.target.closest('[data-unlink-relation]');
   if (!button) return;
   const relationId = button.dataset.unlinkRelation;
-  if (!relationId || !window.confirm('¿Desvincular este producto de este proveedor? Solo se eliminará la relación.')) return;
+  if (!relationId) return;
+  if (!(await askConfirm('¿Desvincular este producto de este proveedor? Solo se eliminará la relación.', { confirmText: 'Desvincular', danger: true }))) return;
   button.disabled = true;
   try {
     await posApiRequest(`/api/purchases/v2/product-providers/${encodeURIComponent(relationId)}`, { method: 'DELETE' });
     await loadProductProviders({ force: true });
   } catch (error) {
     button.disabled = false;
-    window.alert(error.message);
+    await askAlert(error.message);
   }
 });
 
@@ -898,8 +1005,15 @@ async function releaseCurrentPendingDocument() {
 }
 
 async function openPendingDocument(documentId) {
-  if (currentDraft && currentPendingDocumentId !== documentId
-    && !window.confirm('Hay otra factura abierta. ¿Deseas liberarla y abrir esta pendiente?')) return;
+  if (currentDraft && currentPendingDocumentId !== documentId) {
+    const label = currentDraft.invoice?.number ? `la factura ${currentDraft.invoice.number}` : 'otra factura';
+    const ok = await askConfirm(
+      `Tienes ${label} en revisión. Se guardará tu avance y volverá a Pendientes para retomarla luego. ¿Abrir esta factura ahora?`,
+      { confirmText: 'Sí, cambiar' }
+    );
+    if (!ok) return;
+    saveInvoiceDraftNow();
+  }
   if (currentPendingDocumentId && currentPendingDocumentId !== documentId) {
     await releaseCurrentPendingDocument();
   }
@@ -911,17 +1025,23 @@ async function openPendingDocument(documentId) {
   pendingLeaseRefreshedAt = Date.now();
   await switchAppModule('invoice-import');
   history.replaceState(null, '', '#ingreso-facturas');
-  elements.accessKeyInput.value = result.data.datos_extraidos?.tax_information?.access_key || '';
+  const serverDraft = result.data.datos_extraidos;
+  const accessKey = serverDraft?.tax_information?.access_key || '';
+  // Si esta factura ya se estaba revisando en este equipo, se retoma ese avance.
+  const stashed = getStashedDraft(accessKey);
+  elements.accessKeyInput.value = accessKey;
   updateKeyState();
-  await renderDraft(result.data.datos_extraidos);
+  await renderDraft(stashed?.draft || serverDraft);
   saveInvoiceDraftNow();
   await loadPendingDocuments({ silent: true });
 }
 
 async function deletePendingDocument(documentId) {
   const record = pendingDocuments.find((item) => item.id === documentId);
-  if (!record || !window.confirm(`¿Borrar la factura pendiente ${record.invoice_number}? El XML y todos sus detalles se eliminarán.`)) return;
+  if (!record) return;
+  if (!(await askConfirm(`¿Borrar la factura pendiente ${record.invoice_number}? El XML y todos sus detalles se eliminarán.`, { confirmText: 'Borrar', danger: true }))) return;
   await posApiRequest(`/api/purchases/v2/documents/${encodeURIComponent(documentId)}`, { method: 'DELETE' });
+  forgetDraftForKey(record.clave_acceso);
   if (currentPendingDocumentId === documentId) {
     currentPendingDocumentId = null;
     resetInvoice({ release: false });
@@ -1072,16 +1192,18 @@ async function previewMobileDocument() {
       body: JSON.stringify({ access_key: accessKey, preview: true })
     });
     const capture = result.data;
+    const stashed = getStashedDraft(capture.draft?.tax_information?.access_key);
+    const draft = stashed?.draft || capture.draft;
     elements.mobileScanAnotherButton.hidden = false;
     if (capture.requires_provider_link) {
-      renderMobileInvoiceSummary(capture.draft, 'Proveedor pendiente de vincular');
+      renderMobileInvoiceSummary(draft, 'Proveedor pendiente de vincular');
       providerLinkContinuation = 'mobile-preview';
       elements.mobileLinkProviderButton.hidden = false;
       elements.mobileSaveButton.hidden = true;
       setMobileStatus('Vincula el proveedor y vuelve a revisar antes de guardar.', 'warning');
       return;
     }
-    renderMobileInvoiceSummary(capture.draft, 'Revisa el detalle y guarda');
+    renderMobileInvoiceSummary(draft, 'Revisa el detalle y guarda');
     providerLinkContinuation = null;
     elements.mobileLinkProviderButton.hidden = true;
     elements.mobileSaveButton.hidden = false;
@@ -1106,7 +1228,7 @@ async function confirmMobileDocument() {
   try {
     const result = await posApiRequest('/api/purchases/v2/documents/capture', {
       method: 'POST',
-      body: JSON.stringify({ access_key: accessKey })
+      body: JSON.stringify({ access_key: accessKey, datos_extraidos: currentDraft || undefined })
     });
     const capture = result.data;
     if (capture.requires_provider_link) {
@@ -1139,7 +1261,9 @@ const OCR_MAX_IMAGE_DIM = 2200; // se reduce la foto antes de procesarla para no
 const OCR_MAX_FILE_BYTES = 30 * 1024 * 1024;
 const OCR_TIMEOUT_MS = 90000;
 let ocrModuleRequest = null;
-let ocrSource = null;          // canvas ya reducido que se pasa al OCR
+let ocrSourceRaw = null;       // canvas ya reducido, sin rotar
+let ocrSource = null;          // canvas rotado que se pasa al OCR
+let ocrRotation = 0;           // 0 / 90 / 180 / 270
 let ocrBand = { top: 0.42, height: 0.16 };
 let ocrBandDrag = null;
 let ocrBusy = false;
@@ -1169,9 +1293,34 @@ function closeOcrCrop() {
   if (previous && previous.startsWith('blob:')) URL.revokeObjectURL(previous);
   elements.ocrCropImage.removeAttribute('src');
   ocrSource = null;
+  ocrSourceRaw = null;
+  ocrRotation = 0;
   ocrBandDrag = null;
   elements.ocrKeyFileCamera.value = '';
   elements.ocrKeyFileGallery.value = '';
+}
+
+// Aplica la rotación elegida y deja `ocrSource` y la previsualización listos.
+// Al rotar se reinicia el recuadro porque cambia la orientación.
+function applyOcrRotation() {
+  if (!ocrSourceRaw) return;
+  const deg = ((ocrRotation % 360) + 360) % 360;
+  if (deg === 0) {
+    ocrSource = ocrSourceRaw;
+  } else {
+    const swap = deg === 90 || deg === 270;
+    const canvas = document.createElement('canvas');
+    canvas.width = swap ? ocrSourceRaw.height : ocrSourceRaw.width;
+    canvas.height = swap ? ocrSourceRaw.width : ocrSourceRaw.height;
+    const context = canvas.getContext('2d');
+    context.translate(canvas.width / 2, canvas.height / 2);
+    context.rotate((deg * Math.PI) / 180);
+    context.drawImage(ocrSourceRaw, -ocrSourceRaw.width / 2, -ocrSourceRaw.height / 2);
+    ocrSource = canvas;
+  }
+  elements.ocrCropImage.src = ocrSource.toDataURL('image/jpeg', 0.85);
+  ocrBand = { top: 0.42, height: 0.16 };
+  renderOcrBand();
 }
 
 function loadImageElement(url) {
@@ -1213,10 +1362,9 @@ async function openOcrCropFromFile(file) {
   }
   const previousSrc = elements.ocrCropImage.getAttribute('src');
   if (previousSrc && previousSrc.startsWith('blob:')) URL.revokeObjectURL(previousSrc);
-  elements.ocrCropImage.src = canvas.toDataURL('image/jpeg', 0.85);
-  ocrSource = canvas;
-  ocrBand = { top: 0.42, height: 0.16 };
-  renderOcrBand();
+  ocrSourceRaw = canvas;
+  ocrRotation = 0;
+  applyOcrRotation();
   elements.ocrCrop.hidden = false;
   elements.ocrCrop.scrollIntoView({ behavior: 'smooth', block: 'center' });
   setMobileStatus('Ajusta el recuadro sobre la clave y toca Leer.');
@@ -1317,6 +1465,7 @@ function handleOcrFileChange(event) {
 elements.ocrKeyFileCamera.addEventListener('change', handleOcrFileChange);
 elements.ocrKeyFileGallery.addEventListener('change', handleOcrFileChange);
 elements.ocrCropCancel.addEventListener('click', () => { if (!ocrBusy) { closeOcrCrop(); setMobileStatus(''); } });
+elements.ocrRotateButton.addEventListener('click', () => { if (!ocrBusy && ocrSourceRaw) { ocrRotation += 90; applyOcrRotation(); } });
 elements.ocrCropRun.addEventListener('click', runOcrRead);
 elements.ocrCropBand.addEventListener('pointerdown', beginOcrBandDrag);
 elements.ocrCropBand.addEventListener('pointermove', moveOcrBandDrag);
@@ -2037,7 +2186,9 @@ async function captureDesktopDocument({ preview = false } = {}) {
   try {
     const result = await posApiRequest('/api/purchases/v2/documents/capture', {
       method: 'POST',
-      body: JSON.stringify(preview ? { access_key: accessKey, preview: true } : { access_key: accessKey })
+      body: JSON.stringify(preview
+        ? { access_key: accessKey, preview: true }
+        : { access_key: accessKey, datos_extraidos: currentDraft || undefined })
     });
     const capture = result.data;
     if (capture.requires_provider_link) {
@@ -2048,7 +2199,8 @@ async function captureDesktopDocument({ preview = false } = {}) {
     }
     if (capture.preview) {
       providerLinkContinuation = null;
-      await renderDraft(capture.draft);
+      const stashed = getStashedDraft(capture.draft?.tax_information?.access_key);
+      await renderDraft(stashed?.draft || capture.draft);
       // El backend ya resolvió el proveedor por RUC; se respeta esa decisión.
       if (capture.provider && !matchedProvider) {
         matchedProvider = capture.provider;
@@ -2359,6 +2511,7 @@ window.completePendingPurchaseDocument = async (invoiceId = null) => {
     body: JSON.stringify({ factura_id: invoiceId })
   });
   currentPendingDocumentId = null;
+  forgetDraftForKey(currentDraft?.tax_information?.access_key);
   return result.data;
 };
 

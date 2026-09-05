@@ -460,6 +460,12 @@
 
             <div class="ocr-crop" id="ocrCrop" hidden>
               <p class="ocr-crop-hint">Coloca el recuadro sobre la línea <strong>completa</strong> de la <strong>CLAVE DE ACCESO</strong> (o de <strong>AUTORIZACIÓN</strong>): deben verse los 49 dígitos de principio a fin. Toca Leer.</p>
+              <div class="ocr-crop-toolbar">
+                <button type="button" class="button button-secondary" id="ocrRotateButton">
+                  <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+                  Rotar
+                </button>
+              </div>
               <div class="ocr-crop-stage" id="ocrCropStage">
                 <img id="ocrCropImage" alt="Foto de la factura">
                 <div class="ocr-crop-band" id="ocrCropBand" role="slider" aria-label="Recuadro sobre la clave" tabindex="0">
@@ -555,6 +561,16 @@
         </button>
       </footer>
     </section>
+  </div>
+
+  <div class="app-dialog" id="appDialog" hidden>
+    <div class="app-dialog-box" role="alertdialog" aria-modal="true" aria-labelledby="appDialogText">
+      <p id="appDialogText"></p>
+      <div class="app-dialog-actions">
+        <button type="button" class="button button-secondary" id="appDialogCancel">Cancelar</button>
+        <button type="button" class="button button-primary" id="appDialogConfirm">Aceptar</button>
+      </div>
+    </div>
   </div>
 
   <script src="/vendor/supabase/supabase-2.45.4.min.js"></script>
