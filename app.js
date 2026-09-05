@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260905.7';
+const APP_BUILD = '20260905.8';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -59,7 +59,29 @@ let pendingDocuments = [];
 let pendingDocumentsTimer = null;
 let scannerControls = null;
 let scannerReader = null;
+let scannerEmptyFrames = 0;
+let scannerMismatchAt = 0;
 let mobileCaptureBusy = false;
+
+// Lector de códigos con TRY_HARDER y formatos probables para la clave del SRI
+// (PDF417 en el RIDE; a veces Code128 o ITF). Si el bundle no expone los enums,
+// se usa la configuración por defecto.
+function createScannerReader() {
+  const zx = window.ZXingBrowser;
+  try {
+    const { DecodeHintType, BarcodeFormat } = zx;
+    if (DecodeHintType && BarcodeFormat) {
+      const hints = new Map();
+      hints.set(DecodeHintType.TRY_HARDER, true);
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+        BarcodeFormat.PDF_417, BarcodeFormat.CODE_128, BarcodeFormat.ITF,
+        BarcodeFormat.CODE_39, BarcodeFormat.QR_CODE, BarcodeFormat.DATA_MATRIX
+      ]);
+      return new zx.BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 120 });
+    }
+  } catch (_) { /* se usa el lector por defecto */ }
+  return new zx.BrowserMultiFormatReader();
+}
 const DESKTOP_VIEW_OVERRIDE_KEY = 'inventario-compras:vista-escritorio';
 
 function matchMediaMatches(query) {
@@ -950,6 +972,7 @@ function renderMobileInvoiceSummary(draft, state) {
 function stopScanner() {
   try { scannerControls?.stop(); } catch (_) { /* La cámara puede haberse detenido sola. */ }
   scannerControls = null;
+  scannerEmptyFrames = 0;
   elements.scannerViewport.hidden = true;
   elements.startScannerButton.hidden = false;
   elements.stopScannerButton.hidden = true;
@@ -967,17 +990,37 @@ async function startScanner() {
   elements.scannerViewport.hidden = false;
   elements.startScannerButton.hidden = true;
   elements.stopScannerButton.hidden = false;
+  scannerEmptyFrames = 0;
+  scannerMismatchAt = 0;
   try {
-    scannerReader ||= new window.ZXingBrowser.BrowserMultiFormatReader();
+    scannerReader ||= createScannerReader();
     scannerControls = await scannerReader.decodeFromConstraints(
       { video: { facingMode: { ideal: 'environment' } }, audio: false },
       elements.scannerVideo,
       (result) => {
-        if (!result || mobileCaptureBusy) return;
-        const digits = result.getText().replace(/\D/g, '');
-        const match = digits.match(/\d{49}/);
-        if (!match || !isValidAccessKey(match[0])) return;
-        elements.mobileAccessKeyInput.value = match[0];
+        if (mobileCaptureBusy) return;
+        if (!result) {
+          scannerEmptyFrames += 1;
+          if (scannerEmptyFrames === 120) {
+            setMobileStatus('No se detecta el código. Si está borroso o dañado, usa "Tomar foto" o "Elegir de galería".', 'warning');
+          }
+          return;
+        }
+        scannerEmptyFrames = 0;
+        const raw = result.getText();
+        let key = (raw.replace(/\D/g, '').match(/\d{49}/) || [])[0] || '';
+        if (key && !isValidAccessKey(key)) {
+          key = window.app.accessKey.resolveFromText(raw, {})?.key || '';
+        }
+        if (!key || !isValidAccessKey(key)) {
+          const now = Date.now();
+          if (now - scannerMismatchAt > 2500) {
+            scannerMismatchAt = now;
+            setMobileStatus('Ese código no corresponde a la clave de una factura del SRI.', 'warning');
+          }
+          return;
+        }
+        elements.mobileAccessKeyInput.value = key;
         updateMobileKeyState();
         stopScanner();
         previewMobileDocument();
@@ -1094,7 +1137,7 @@ async function confirmMobileDocument() {
 // teléfono; la foto no se sube a ningún servidor.
 const OCR_MAX_IMAGE_DIM = 2200; // se reduce la foto antes de procesarla para no agotar la memoria del navegador
 const OCR_MAX_FILE_BYTES = 30 * 1024 * 1024;
-const OCR_TIMEOUT_MS = 45000;
+const OCR_TIMEOUT_MS = 90000;
 let ocrModuleRequest = null;
 let ocrSource = null;          // canvas ya reducido que se pasa al OCR
 let ocrBand = { top: 0.42, height: 0.16 };
@@ -1216,7 +1259,7 @@ async function runOcrRead() {
   ocrBusy = true;
   elements.ocrCropRun.disabled = true;
   elements.ocrCropCancel.disabled = true;
-  setMobileStatus('Leyendo la clave…', 'loading');
+  setMobileStatus('Leyendo la clave… puede tardar unos segundos.', 'loading');
   try {
     await loadOcrModule();
     const sourceHeight = ocrSource.height;
@@ -1225,11 +1268,13 @@ async function runOcrRead() {
     const y = Math.max(0, (ocrBand.top - pad) * sourceHeight);
     const h = Math.min(sourceHeight - y, (ocrBand.height + pad * 2) * sourceHeight);
     const hit = await Promise.race([
-      window.ocrClave.run(ocrSource, { x: 0, y, w: sourceWidth, h }),
+      window.ocrClave.run(ocrSource, { x: 0, y, w: sourceWidth, h }, {
+        onProgress: (message) => setMobileStatus(`${message}`, 'loading')
+      }),
       new Promise((_, reject) => window.setTimeout(() => reject(new Error('La lectura tardó demasiado. Inténtalo de nuevo con más luz o escríbela.')), OCR_TIMEOUT_MS))
     ]);
     if (!hit) {
-      setMobileStatus('No se pudo leer la clave con claridad. Ajusta el recuadro, mejora la luz o escríbela.', 'error');
+      setMobileStatus('No se pudo leer la clave con claridad. Prueba a acercar más la cámara, mejorar la luz, o escríbela.', 'error');
       return;
     }
     elements.mobileAccessKeyInput.value = hit.key;
