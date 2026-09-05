@@ -4,10 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#25282c">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="robots" content="noindex, nofollow, noarchive">
   <meta name="referrer" content="no-referrer">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://api.ferrisoluciones.com https://lpsupabase.luispintasolutions.com wss://lpsupabase.luispintasolutions.com; worker-src 'self' blob:">
   <title>Inventario y Compras | Ferrisoluciones</title>
+  <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/vendor/fontawesome/css/all-6.5.2.min.css">
   <link rel="stylesheet" href="/provider-base.css">
   <link rel="stylesheet" href="/styles.css">
@@ -74,6 +76,11 @@
           <i class="fa-solid fa-file-invoice" aria-hidden="true"></i>
           <span>Ingresar<br>facturas</span>
         </a>
+        <a href="#pendientes" class="module-nav-item pending-nav-item" data-app-module="pending-documents" title="Facturas pendientes" hidden>
+          <i class="fa-solid fa-inbox" aria-hidden="true"></i>
+          <span>Pendientes</span>
+          <strong class="nav-count" id="pendingDocumentsBadge">0</strong>
+        </a>
         <a href="#dashboard" class="module-nav-item" data-app-module="provider-dashboard" title="Dashboard de proveedores">
           <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
           <span>Dashboard</span>
@@ -97,6 +104,7 @@
         <div class="user-copy">
           <strong id="userName"></strong>
           <span id="userRole"></span>
+          <small class="app-version" id="appVersion" title="Versión instalada">v0.2.0</small>
         </div>
         <button type="button" class="logout-button" id="logoutButton" title="Cerrar sesión" aria-label="Cerrar sesión">
           <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>
@@ -313,6 +321,81 @@
           <div class="product-provider-results" id="productProviderResults" aria-live="polite"></div>
         </main>
       </section>
+
+      <section class="module-panel pending-documents-panel" data-module-panel="pending-documents" hidden aria-labelledby="pendingDocumentsTitle">
+        <header class="app-header">
+          <div>
+            <p class="product-name">BANDEJA DE INGRESO</p>
+            <h1 id="pendingDocumentsTitle">Pendientes</h1>
+          </div>
+          <button type="button" class="button button-secondary" id="pendingDocumentsRefresh">
+            <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+            Actualizar
+          </button>
+        </header>
+        <main class="pending-documents-workspace">
+          <p class="pending-documents-summary" id="pendingDocumentsSummary">Consultando facturas pendientes.</p>
+          <div class="pending-documents-list" id="pendingDocumentsList" aria-live="polite"></div>
+        </main>
+      </section>
+
+      <section class="module-panel mobile-capture-panel" data-module-panel="mobile-capture" hidden aria-labelledby="mobileCaptureTitle">
+        <header class="mobile-capture-header">
+          <div>
+            <p class="product-name">CAPTURA MÓVIL</p>
+            <h1 id="mobileCaptureTitle">Cargar factura</h1>
+          </div>
+          <span class="mobile-version" id="mobileAppVersion">v0.2.0</span>
+        </header>
+        <main class="mobile-capture-workspace">
+          <section class="scanner-card">
+            <div class="scanner-viewport" id="scannerViewport" hidden>
+              <video id="scannerVideo" playsinline muted aria-label="Vista de la cámara para escanear"></video>
+              <div class="scanner-guide" aria-hidden="true"></div>
+            </div>
+            <button type="button" class="button button-primary mobile-primary-action" id="startScannerButton">
+              <i class="fa-solid fa-camera" aria-hidden="true"></i>
+              Escanear factura
+            </button>
+            <button type="button" class="button button-secondary mobile-primary-action" id="stopScannerButton" hidden>
+              <i class="fa-solid fa-stop" aria-hidden="true"></i>
+              Detener cámara
+            </button>
+
+            <div class="mobile-manual-entry">
+              <label for="mobileAccessKeyInput">Clave de acceso</label>
+              <div>
+                <i class="fa-solid fa-barcode" aria-hidden="true"></i>
+                <input id="mobileAccessKeyInput" type="text" inputmode="numeric" maxlength="49" autocomplete="off" placeholder="49 dígitos">
+              </div>
+            </div>
+            <button type="button" class="button button-primary mobile-primary-action" id="mobileCaptureButton" disabled>
+              <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>
+              Consultar y guardar
+            </button>
+            <div class="mobile-capture-status" id="mobileCaptureStatus" role="status" aria-live="polite"></div>
+          </section>
+
+          <section class="mobile-invoice-summary" id="mobileInvoiceSummary" hidden>
+            <span id="mobileInvoiceState"></span>
+            <h2 id="mobileInvoiceProvider"></h2>
+            <dl>
+              <div><dt>RUC</dt><dd id="mobileInvoiceTaxId"></dd></div>
+              <div><dt>Factura</dt><dd id="mobileInvoiceNumber"></dd></div>
+              <div><dt>Productos</dt><dd id="mobileInvoiceItems"></dd></div>
+              <div><dt>Total</dt><dd id="mobileInvoiceTotal"></dd></div>
+            </dl>
+            <button type="button" class="button button-primary mobile-primary-action" id="mobileLinkProviderButton" hidden>
+              <i class="fa-solid fa-link" aria-hidden="true"></i>
+              Vincular proveedor
+            </button>
+            <button type="button" class="button button-secondary mobile-primary-action" id="mobileScanAnotherButton" hidden>
+              <i class="fa-solid fa-plus" aria-hidden="true"></i>
+              Escanear otra factura
+            </button>
+          </section>
+        </main>
+      </section>
     </div>
   </div>
 
@@ -357,6 +440,7 @@
   <script src="/vendor/supabase/supabase-2.45.4.min.js"></script>
   <script src="/vendor/jspdf/jspdf-2.5.1.umd.min.js"></script>
   <script src="/vendor/jspdf/autotable-3.5.29.min.js"></script>
+  <script src="/vendor/zxing/zxing-browser-0.2.1.min.js"></script>
   <script src="/app.js" defer></script>
 </body>
 </html>

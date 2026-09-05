@@ -1,5 +1,8 @@
 'use strict';
 
+const APP_VERSION = '0.2.0';
+const APP_BUILD = '20260905.1';
+
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
 const PROFILE_TABLE = 'ferre_usuarios_ferreteria';
@@ -26,7 +29,14 @@ const elements = Object.fromEntries([
   'invoiceFields', 'providerLinkModal', 'providerLinkCloseButton', 'providerLinkCancelButton',
   'providerLinkConfirmButton', 'providerLinkSearchInput', 'providerLinkGrid',
   'providerLinkModalStatus', 'providerLinkXmlName', 'providerLinkXmlTaxId',
-  'accessRow', 'totalsStrip', 'itemsSection'
+  'accessRow', 'totalsStrip', 'itemsSection', 'appVersion', 'mobileAppVersion',
+  'pendingDocumentsBadge', 'pendingDocumentsRefresh', 'pendingDocumentsSummary',
+  'pendingDocumentsList', 'scannerViewport', 'scannerVideo', 'startScannerButton',
+  'stopScannerButton', 'mobileAccessKeyInput', 'mobileCaptureButton',
+  'mobileCaptureStatus', 'mobileInvoiceSummary', 'mobileInvoiceState',
+  'mobileInvoiceProvider', 'mobileInvoiceTaxId', 'mobileInvoiceNumber',
+  'mobileInvoiceItems', 'mobileInvoiceTotal', 'mobileLinkProviderButton',
+  'mobileScanAnotherButton'
 ].map((id) => [id, document.getElementById(id)]));
 
 let currentDraft = null;
@@ -39,6 +49,16 @@ let matchedProvider = null;
 let providerLinkCandidates = [];
 let selectedProviderForLink = null;
 let providerLinkCandidatesRequest = null;
+let providerLinkContinuation = null;
+let currentPendingDocumentId = null;
+let pendingLeaseRefreshedAt = 0;
+let pendingDocuments = [];
+let pendingDocumentsTimer = null;
+let scannerControls = null;
+let scannerReader = null;
+let mobileCaptureBusy = false;
+const IS_MOBILE_DEVICE = /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent)
+  || (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) <= 820);
 const internalProductLookupCache = new Map();
 const internalProductSearchCache = new Map();
 let internalProductCatalog = [];
@@ -76,7 +96,8 @@ function saveInvoiceDraftNow() {
       version: 1,
       savedAt: Date.now(),
       userId: currentSession.user.id,
-      draft: currentDraft
+      draft: currentDraft,
+      pendingDocumentId: currentPendingDocumentId
     }));
   } catch (error) {
     console.warn('[inventario-compras] No se pudo guardar el borrador:', error.message);
@@ -95,7 +116,8 @@ function markManualInvoiceFlow() {
       version: 1,
       savedAt: Date.now(),
       userId: currentSession?.user?.id,
-      stage: 'manual-entry'
+      stage: 'manual-entry',
+      pendingDocumentId: currentPendingDocumentId
     }));
   } catch (_) { /* La restauración es auxiliar si el almacenamiento está lleno. */ }
 }
@@ -120,6 +142,7 @@ async function restoreInvoiceDraft() {
   const cached = readLocalCache(INVOICE_DRAFT_CACHE_KEY);
   if (!cached?.draft) return false;
   elements.accessKeyInput.value = cached.draft.tax_information?.access_key || '';
+  currentPendingDocumentId = cached.pendingDocumentId || null;
   updateKeyState();
   await renderDraft(cached.draft);
   return true;
@@ -127,6 +150,41 @@ async function restoreInvoiceDraft() {
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(Number(value) || 0);
+}
+
+function renderApplicationVersion(state = '') {
+  const label = `v${APP_VERSION} · ${APP_BUILD}${state ? ` · ${state}` : ''}`;
+  if (elements.appVersion) elements.appVersion.textContent = label;
+  if (elements.mobileAppVersion) elements.mobileAppVersion.textContent = label;
+}
+
+async function initializeVersioning() {
+  renderApplicationVersion();
+  try {
+    const response = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
+    const remote = response.ok ? await response.json() : null;
+    renderApplicationVersion(remote && (remote.version !== APP_VERSION || remote.build !== APP_BUILD)
+      ? 'actualización disponible'
+      : 'actualizado');
+  } catch (_) {
+    renderApplicationVersion('sin conexión');
+  }
+
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    try {
+      const hadController = Boolean(navigator.serviceWorker.controller);
+      const registration = await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
+      await registration.update();
+      let reloading = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (reloading || !hadController) return;
+        reloading = true;
+        window.location.reload();
+      });
+    } catch (error) {
+      console.warn('[inventario-compras] No se pudo activar network-first:', error.message);
+    }
+  }
 }
 
 async function posApiRequest(path, options = {}) {
@@ -212,12 +270,15 @@ function profileInitials(profile) {
 }
 
 function moduleFromHash() {
+  if (IS_MOBILE_DEVICE) return 'mobile-capture';
   return {
     '#ingreso-facturas': 'invoice-import',
     '#dashboard': 'provider-dashboard',
     '#facturas': 'provider-invoices',
     '#comparador': 'provider-comparator',
-    '#producto-proveedores': 'product-providers'
+    '#producto-proveedores': 'product-providers',
+    '#pendientes': 'pending-documents',
+    '#cargar-factura': 'mobile-capture'
   }[window.location.hash] || 'invoice-import';
 }
 
@@ -241,6 +302,8 @@ function showLogin() {
   elements.sessionLoader.hidden = true;
   elements.appShell.hidden = true;
   elements.authScreen.hidden = false;
+  stopScanner();
+  stopPendingDocumentsPolling();
   elements.emailInput.focus();
 }
 
@@ -256,8 +319,13 @@ async function showApplication(session, profile) {
   elements.sessionLoader.hidden = true;
   elements.authScreen.hidden = true;
   elements.appShell.hidden = false;
+  document.body.classList.toggle('mobile-capture-only', IS_MOBILE_DEVICE);
+  if (IS_MOBILE_DEVICE) history.replaceState(null, '', '#cargar-factura');
   const restoreManualEntry = hasRestorableManualInvoice();
-  const initialModule = restoreManualEntry ? 'provider-entry' : moduleFromHash();
+  if (restoreManualEntry) {
+    currentPendingDocumentId = readLocalCache(INVOICE_FLOW_CACHE_KEY)?.pendingDocumentId || null;
+  }
+  const initialModule = IS_MOBILE_DEVICE ? 'mobile-capture' : (restoreManualEntry ? 'provider-entry' : moduleFromHash());
   try {
     await switchAppModule(initialModule);
     if (restoreManualEntry) {
@@ -270,6 +338,10 @@ async function showApplication(session, profile) {
       });
     } else if (initialModule === 'invoice-import' && !(await restoreInvoiceDraft())) {
       elements.accessKeyInput.focus();
+    }
+    if (!IS_MOBILE_DEVICE) {
+      await loadPendingDocuments({ silent: true });
+      startPendingDocumentsPolling();
     }
   } catch (error) {
     console.error('[inventario-compras] No se pudo restaurar el módulo:', error);
@@ -323,10 +395,11 @@ elements.togglePasswordButton.addEventListener('click', () => {
 elements.logoutButton.addEventListener('click', async () => {
   elements.logoutButton.disabled = true;
   try {
+    await releaseCurrentPendingDocument();
     await db.auth.signOut();
   } finally {
     clearInvoiceIntakeCache();
-    resetInvoice();
+    resetInvoice({ release: false });
     resetProviderModule();
     switchAppModule('invoice-import');
     clearAuthError();
@@ -382,6 +455,10 @@ function resetProviderModule() {
 }
 
 async function switchAppModule(moduleName) {
+  if (IS_MOBILE_DEVICE && moduleName !== 'mobile-capture') {
+    moduleName = 'mobile-capture';
+    history.replaceState(null, '', '#cargar-factura');
+  }
   const providerModes = {
     'provider-dashboard': 'dashboard',
     'provider-invoices': 'facturas',
@@ -409,6 +486,10 @@ async function switchAppModule(moduleName) {
     elements.accessKeyInput.focus();
   } else if (moduleName === 'product-providers') {
     await loadProductProviders();
+  } else if (moduleName === 'pending-documents') {
+    await loadPendingDocuments();
+  } else if (moduleName === 'mobile-capture') {
+    elements.mobileAccessKeyInput?.focus();
   }
 }
 
@@ -598,6 +679,282 @@ productProviderElements.productProviderResults.addEventListener('click', async (
     window.alert(error.message);
   }
 });
+
+function stopPendingDocumentsPolling() {
+  window.clearInterval(pendingDocumentsTimer);
+  pendingDocumentsTimer = null;
+}
+
+function startPendingDocumentsPolling() {
+  stopPendingDocumentsPolling();
+  refreshPendingLease();
+  pendingDocumentsTimer = window.setInterval(() => {
+    loadPendingDocuments({ silent: true });
+    refreshPendingLease();
+  }, 30000);
+}
+
+async function refreshPendingLease() {
+  if (!currentPendingDocumentId || Date.now() - pendingLeaseRefreshedAt < 10 * 60 * 1000) return;
+  try {
+    await posApiRequest(`/api/purchases/v2/documents/${encodeURIComponent(currentPendingDocumentId)}/claim`, {
+      method: 'POST',
+      body: '{}'
+    });
+    pendingLeaseRefreshedAt = Date.now();
+  } catch (error) {
+    console.warn('[inventario-compras] No se pudo renovar la revisión pendiente:', error.message);
+  }
+}
+
+function pendingStatusLabel(document) {
+  const lockActive = document.status === 'EN_REVISION'
+    && document.locked_until
+    && new Date(document.locked_until).getTime() > Date.now();
+  if (!lockActive) return 'Pendiente';
+  if (document.claimed_by === currentSession?.user?.email) return 'En revisión por ti';
+  return `En revisión${document.claimed_by ? ` por ${document.claimed_by}` : ''}`;
+}
+
+function renderPendingDocuments(canDelete = false) {
+  elements.pendingDocumentsList.replaceChildren();
+  elements.pendingDocumentsSummary.textContent = pendingDocuments.length
+    ? `${pendingDocuments.length} ${pendingDocuments.length === 1 ? 'factura espera' : 'facturas esperan'} revisión.`
+    : 'No hay facturas pendientes.';
+  const navItem = document.querySelector('[data-app-module="pending-documents"]');
+  navItem.hidden = pendingDocuments.length === 0;
+  elements.pendingDocumentsBadge.textContent = pendingDocuments.length;
+
+  pendingDocuments.forEach((record) => {
+    const card = window.document.createElement('article');
+    card.className = 'pending-document-card';
+    const content = window.document.createElement('button');
+    content.type = 'button';
+    content.className = 'pending-document-open';
+    content.dataset.pendingOpen = record.id;
+    content.innerHTML = `
+      <header>
+        <div><span>${escapeHtml(record.provider_name)}</span><strong>${escapeHtml(record.invoice_number)}</strong></div>
+        <b>${escapeHtml(pendingStatusLabel(record))}</b>
+      </header>
+      <dl>
+        <div><dt>Emisión</dt><dd>${escapeHtml(date(record.issue_date))}</dd></div>
+        <div><dt>Productos</dt><dd>${escapeHtml(record.item_count)}</dd></div>
+        <div><dt>Total</dt><dd>${escapeHtml(money(record.total))}</dd></div>
+        <div><dt>Capturada</dt><dd>${escapeHtml(new Date(record.created_at).toLocaleString('es-EC'))}</dd></div>
+      </dl>`;
+    card.appendChild(content);
+    if (canDelete) {
+      const deleteButton = window.document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'icon-button pending-document-delete';
+      deleteButton.dataset.pendingDelete = record.id;
+      deleteButton.title = 'Borrar factura pendiente';
+      deleteButton.setAttribute('aria-label', `Borrar factura ${record.invoice_number}`);
+      deleteButton.innerHTML = '<i class="fa-solid fa-trash" aria-hidden="true"></i>';
+      card.appendChild(deleteButton);
+    }
+    elements.pendingDocumentsList.appendChild(card);
+  });
+}
+
+async function loadPendingDocuments({ silent = false } = {}) {
+  if (IS_MOBILE_DEVICE || !currentSession) return;
+  if (!silent) {
+    elements.pendingDocumentsRefresh.disabled = true;
+    elements.pendingDocumentsSummary.textContent = 'Actualizando facturas pendientes.';
+  }
+  try {
+    const result = await posApiRequest('/api/purchases/v2/documents/pending', { method: 'GET' });
+    pendingDocuments = result.data?.items || [];
+    renderPendingDocuments(Boolean(result.data?.can_delete));
+  } catch (error) {
+    if (!silent) elements.pendingDocumentsSummary.textContent = error.message;
+  } finally {
+    elements.pendingDocumentsRefresh.disabled = false;
+  }
+}
+
+async function releaseCurrentPendingDocument() {
+  const documentId = currentPendingDocumentId;
+  currentPendingDocumentId = null;
+  if (!documentId || !currentSession) return;
+  try {
+    await posApiRequest(`/api/purchases/v2/documents/${encodeURIComponent(documentId)}/release`, {
+      method: 'POST',
+      body: '{}'
+    });
+  } catch (error) {
+    console.warn('[inventario-compras] No se pudo liberar el pendiente:', error.message);
+  }
+}
+
+async function openPendingDocument(documentId) {
+  if (currentDraft && currentPendingDocumentId !== documentId
+    && !window.confirm('Hay otra factura abierta. ¿Deseas liberarla y abrir esta pendiente?')) return;
+  if (currentPendingDocumentId && currentPendingDocumentId !== documentId) {
+    await releaseCurrentPendingDocument();
+  }
+  const result = await posApiRequest(`/api/purchases/v2/documents/${encodeURIComponent(documentId)}/claim`, {
+    method: 'POST',
+    body: '{}'
+  });
+  currentPendingDocumentId = documentId;
+  pendingLeaseRefreshedAt = Date.now();
+  await switchAppModule('invoice-import');
+  history.replaceState(null, '', '#ingreso-facturas');
+  elements.accessKeyInput.value = result.data.datos_extraidos?.tax_information?.access_key || '';
+  updateKeyState();
+  await renderDraft(result.data.datos_extraidos);
+  saveInvoiceDraftNow();
+  await loadPendingDocuments({ silent: true });
+}
+
+async function deletePendingDocument(documentId) {
+  const record = pendingDocuments.find((item) => item.id === documentId);
+  if (!record || !window.confirm(`¿Borrar la factura pendiente ${record.invoice_number}? El XML y todos sus detalles se eliminarán.`)) return;
+  await posApiRequest(`/api/purchases/v2/documents/${encodeURIComponent(documentId)}`, { method: 'DELETE' });
+  if (currentPendingDocumentId === documentId) {
+    currentPendingDocumentId = null;
+    resetInvoice({ release: false });
+  }
+  await loadPendingDocuments();
+}
+
+elements.pendingDocumentsRefresh.addEventListener('click', () => loadPendingDocuments());
+elements.pendingDocumentsList.addEventListener('click', async (event) => {
+  const openButton = event.target.closest('[data-pending-open]');
+  const deleteButton = event.target.closest('[data-pending-delete]');
+  try {
+    if (deleteButton) await deletePendingDocument(deleteButton.dataset.pendingDelete);
+    else if (openButton) await openPendingDocument(openButton.dataset.pendingOpen);
+  } catch (error) {
+    elements.pendingDocumentsSummary.textContent = error.message;
+  }
+});
+
+function setMobileStatus(message, type = '') {
+  elements.mobileCaptureStatus.className = `mobile-capture-status${type ? ` ${type}` : ''}`;
+  elements.mobileCaptureStatus.textContent = message;
+}
+
+function renderMobileInvoiceSummary(draft, state) {
+  currentDraft = draft;
+  elements.mobileInvoiceSummary.hidden = false;
+  elements.mobileInvoiceState.textContent = state;
+  elements.mobileInvoiceProvider.textContent = draft.provider.trade_name || draft.provider.legal_name;
+  elements.mobileInvoiceTaxId.textContent = draft.provider.tax_id;
+  elements.mobileInvoiceNumber.textContent = draft.invoice.number;
+  elements.mobileInvoiceItems.textContent = draft.items.length;
+  elements.mobileInvoiceTotal.textContent = money(draft.totals.total);
+}
+
+function stopScanner() {
+  try { scannerControls?.stop(); } catch (_) { /* La cámara puede haberse detenido sola. */ }
+  scannerControls = null;
+  elements.scannerViewport.hidden = true;
+  elements.startScannerButton.hidden = false;
+  elements.stopScannerButton.hidden = true;
+}
+
+async function startScanner() {
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    return setMobileStatus('La cámara requiere HTTPS y permiso del navegador.', 'error');
+  }
+  if (!window.ZXingBrowser?.BrowserMultiFormatReader) {
+    return setMobileStatus('El lector no pudo cargarse. Actualiza la página e inténtalo nuevamente.', 'error');
+  }
+  stopScanner();
+  setMobileStatus('Autoriza la cámara y apunta a la clave de acceso.');
+  elements.scannerViewport.hidden = false;
+  elements.startScannerButton.hidden = true;
+  elements.stopScannerButton.hidden = false;
+  try {
+    scannerReader ||= new window.ZXingBrowser.BrowserMultiFormatReader();
+    scannerControls = await scannerReader.decodeFromConstraints(
+      { video: { facingMode: { ideal: 'environment' } }, audio: false },
+      elements.scannerVideo,
+      (result) => {
+        if (!result || mobileCaptureBusy) return;
+        const digits = result.getText().replace(/\D/g, '');
+        const match = digits.match(/\d{49}/);
+        if (!match || !isValidAccessKey(match[0])) return;
+        elements.mobileAccessKeyInput.value = match[0];
+        updateMobileKeyState();
+        stopScanner();
+        captureMobileDocument();
+      }
+    );
+  } catch (error) {
+    stopScanner();
+    const denied = error?.name === 'NotAllowedError' || /permission|denied|permiso/i.test(error?.message || '');
+    setMobileStatus(denied
+      ? 'No se concedió acceso a la cámara. Habilítalo en la configuración del navegador.'
+      : `No fue posible iniciar la cámara: ${error.message || 'error desconocido'}.`, 'error');
+  }
+}
+
+function updateMobileKeyState() {
+  const digits = elements.mobileAccessKeyInput.value.replace(/\D/g, '').slice(0, 49);
+  elements.mobileAccessKeyInput.value = digits;
+  elements.mobileCaptureButton.disabled = mobileCaptureBusy || !isValidAccessKey(digits);
+}
+
+function resetMobileCapture() {
+  stopScanner();
+  currentDraft = null;
+  providerLinkContinuation = null;
+  elements.mobileAccessKeyInput.value = '';
+  elements.mobileInvoiceSummary.hidden = true;
+  elements.mobileLinkProviderButton.hidden = true;
+  elements.mobileScanAnotherButton.hidden = true;
+  setMobileStatus('');
+  updateMobileKeyState();
+}
+
+async function captureMobileDocument() {
+  const accessKey = elements.mobileAccessKeyInput.value;
+  if (!isValidAccessKey(accessKey) || mobileCaptureBusy) return;
+  mobileCaptureBusy = true;
+  updateMobileKeyState();
+  elements.startScannerButton.disabled = true;
+  setMobileStatus('Consultando el SRI y verificando el proveedor…', 'loading');
+  try {
+    const result = await posApiRequest('/api/purchases/v2/documents/capture', {
+      method: 'POST',
+      body: JSON.stringify({ access_key: accessKey })
+    });
+    const capture = result.data;
+    renderMobileInvoiceSummary(capture.draft, capture.requires_provider_link ? 'Proveedor pendiente de vincular' : 'XML guardado');
+    if (capture.requires_provider_link) {
+      providerLinkContinuation = 'mobile-capture';
+      elements.mobileLinkProviderButton.hidden = false;
+      elements.mobileScanAnotherButton.hidden = true;
+      setMobileStatus('Vincula el proveedor antes de guardar esta factura.', 'warning');
+    } else {
+      providerLinkContinuation = null;
+      currentPendingDocumentId = null;
+      elements.mobileLinkProviderButton.hidden = true;
+      elements.mobileScanAnotherButton.hidden = false;
+      setMobileStatus(capture.duplicate
+        ? 'Esta factura ya estaba guardada; no se creó un duplicado.'
+        : 'Factura guardada correctamente en Pendientes.', 'success');
+    }
+  } catch (error) {
+    setMobileStatus(error.message, 'error');
+  } finally {
+    mobileCaptureBusy = false;
+    elements.startScannerButton.disabled = false;
+    updateMobileKeyState();
+  }
+}
+
+elements.startScannerButton.addEventListener('click', startScanner);
+elements.stopScannerButton.addEventListener('click', stopScanner);
+elements.mobileAccessKeyInput.addEventListener('input', updateMobileKeyState);
+elements.mobileCaptureButton.addEventListener('click', captureMobileDocument);
+elements.mobileLinkProviderButton.addEventListener('click', openProviderLinking);
+elements.mobileScanAnotherButton.addEventListener('click', resetMobileCapture);
 
 document.querySelectorAll('[data-app-module]').forEach((item) => {
   item.addEventListener('click', async (event) => {
@@ -1175,9 +1532,48 @@ async function requestPreview(path, body = {}) {
   }
 }
 
-function resetInvoice() {
+async function captureDesktopDocument() {
+  const accessKey = elements.accessKeyInput.value;
+  clearError();
+  setBusy(true);
+  try {
+    const result = await posApiRequest('/api/purchases/v2/documents/capture', {
+      method: 'POST',
+      body: JSON.stringify({ access_key: accessKey })
+    });
+    const capture = result.data;
+    if (capture.requires_provider_link) {
+      providerLinkContinuation = 'desktop-capture';
+      await renderDraft(capture.draft);
+      return true;
+    }
+    if (capture.document.status === 'REGISTRADO') {
+      throw new Error('Esta factura ya fue registrada y no puede volver a ingresarse.');
+    }
+    const claimed = await posApiRequest(`/api/purchases/v2/documents/${encodeURIComponent(capture.document.id)}/claim`, {
+      method: 'POST',
+      body: '{}'
+    });
+    currentPendingDocumentId = capture.document.id;
+    pendingLeaseRefreshedAt = Date.now();
+    providerLinkContinuation = null;
+    await renderDraft(claimed.data.datos_extraidos);
+    await loadPendingDocuments({ silent: true });
+    return true;
+  } catch (error) {
+    showError(error.message || 'No fue posible consultar y guardar la factura.');
+    return false;
+  } finally {
+    setBusy(false);
+  }
+}
+
+function resetInvoice({ release = true } = {}) {
+  if (release) releaseCurrentPendingDocument();
   clearInvoiceIntakeCache();
   currentDraft = null;
+  currentPendingDocumentId = null;
+  providerLinkContinuation = null;
   matchedProvider = null;
   attemptedKey = '';
   failedSriAttempts = 0;
@@ -1195,7 +1591,7 @@ elements.accessForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const key = elements.accessKeyInput.value;
   if (!isValidAccessKey(key)) return;
-  const succeeded = await requestPreview('/api/purchases/v2/sri/fetch', { access_key: key });
+  const succeeded = await captureDesktopDocument();
   if (succeeded) failedSriAttempts = 0;
   else if (elements.accessKeyInput.value === attemptedKey) failedSriAttempts += 1;
   updateKeyState();
@@ -1366,6 +1762,13 @@ async function confirmProviderLinking() {
     setProviderMatch('matched', `Vinculado como ${matchedProvider.empresa}`);
     providerLinkCandidates = providerLinkCandidates.map((provider) => provider.id === matchedProvider.id ? matchedProvider : provider);
     closeProviderLinking();
+    const continuation = providerLinkContinuation;
+    providerLinkContinuation = null;
+    if (continuation === 'mobile-capture') {
+      await captureMobileDocument();
+    } else if (continuation === 'desktop-capture') {
+      await captureDesktopDocument();
+    }
   } catch (error) {
     elements.providerLinkModalStatus.textContent = error.message;
     elements.providerLinkModalStatus.classList.add('error');
@@ -1384,6 +1787,11 @@ elements.providerLinkModal.addEventListener('click', (event) => {
   if (event.target === elements.providerLinkModal) closeProviderLinking();
 });
 window.addEventListener('pagehide', saveInvoiceDraftNow);
+window.addEventListener('pagehide', stopScanner);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopScanner();
+  else if (!IS_MOBILE_DEVICE) loadPendingDocuments({ silent: true });
+});
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !elements.providerLinkModal.hidden) closeProviderLinking();
 });
@@ -1414,5 +1822,18 @@ elements.continueEntryButton.addEventListener('click', async () => {
   }
 });
 
+window.completePendingPurchaseDocument = async (invoiceId = null) => {
+  const documentId = currentPendingDocumentId;
+  if (!documentId) return { completed: false, reason: 'no_pending_document' };
+  const result = await posApiRequest(`/api/purchases/v2/documents/${encodeURIComponent(documentId)}/complete`, {
+    method: 'POST',
+    body: JSON.stringify({ factura_id: invoiceId })
+  });
+  currentPendingDocumentId = null;
+  return result.data;
+};
+
 updateKeyState();
+updateMobileKeyState();
+initializeVersioning();
 initializeSession();

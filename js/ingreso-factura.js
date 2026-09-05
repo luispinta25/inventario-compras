@@ -1568,6 +1568,17 @@ async function guardarFacturaIngreso() {
 
         hideSavingProduct();
 
+        if (typeof window.completePendingPurchaseDocument === 'function') {
+            try {
+                await window.completePendingPurchaseDocument(facturaInsertada.id);
+            } catch (pendingError) {
+                console.error('La factura se guardó, pero no se cerró el XML pendiente:', pendingError);
+                advertenciaVinculosXml = [advertenciaVinculosXml, 'El XML continúa en Pendientes y requiere revisión administrativa.']
+                    .filter(Boolean)
+                    .join(' ');
+            }
+        }
+
         // Limpiar caché después de guardado exitoso
         try {
             limpiarCacheIngreso();

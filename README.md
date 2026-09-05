@@ -17,6 +17,16 @@ autorizada y no contiene secretos del servidor.
 - El ingreso conserva un borrador local por usuario durante siete días y
   recupera tanto la revisión XML como el formulario posterior tras una recarga
   o cierre accidental.
+- La aplicación muestra versión y build en pantalla. Un service worker usa
+  network-first para HTML, JavaScript, CSS y vistas, con caché solo como
+  respaldo cuando la red no está disponible; nunca intercepta el API.
+- En teléfonos, después del inicio de sesión se fuerza el módulo exclusivo
+  `Cargar factura`: solicita permiso de cámara, escanea la clave SRI y guarda el
+  XML en la cola. Si el RUC no existe, obliga a vincular un proveedor antes.
+- `Pendientes` aparece en escritorio cuando existe al menos un XML por revisar.
+  Al abrir uno se bloquea temporalmente para el usuario; al guardar la factura
+  se marca como registrado. Solo `admin` puede borrar el documento pendiente y
+  sus líneas asociadas.
 - Navegación superior con módulos independientes.
 - `Ingresar facturas`: consulta la clave/XML, vincula el proveedor por RUC y
   continúa en el formulario tradicional con proveedor y datos básicos precargados.
@@ -60,3 +70,6 @@ Antes de publicar, verifica que el backend admita exactamente estos orígenes:
 
 No agregues comodines a CORS y revisa [SECURITY.md](SECURITY.md) antes de cada
 publicación.
+
+Para una entrega nueva se actualizan juntos `APP_VERSION` y `APP_BUILD` en
+`app.js`, `version.json` y el nombre de caché de `sw.js`.

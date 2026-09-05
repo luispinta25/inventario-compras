@@ -1,0 +1,16 @@
+{
+  "name": "Ferrisoluciones Inventario y Compras",
+  "short_name": "Inventario",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eef1f4",
+  "theme_color": "#25282c",
+  "icons": [
+    {
+      "src": "/img/brand/ferrisoluciones.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
