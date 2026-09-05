@@ -1126,7 +1126,7 @@ async function authenticatedRequest(path, body = {}) {
     throw new Error('La sesión caducó. Inicia sesión nuevamente.');
   }
   currentSession = session;
-  return fetch(path, {
+  return fetch(`${POS_API_BASE_URL}${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1141,7 +1141,16 @@ async function requestPreview(path, body = {}) {
   setBusy(true);
   try {
     const response = await authenticatedRequest(path, body);
-    const result = await response.json();
+    const rawResponse = await response.text();
+    let result;
+    try {
+      result = JSON.parse(rawResponse);
+    } catch (_) {
+      throw new Error(
+        `El backend respondió en un formato inesperado (HTTP ${response.status}). `
+        + 'Código de diagnóstico: API_INVALID_RESPONSE.'
+      );
+    }
     if (!response.ok || !result.ok) {
       const code = String(result?.code || 'SRI_FETCH_ERROR');
       const hints = {
@@ -1156,7 +1165,10 @@ async function requestPreview(path, body = {}) {
     await renderDraft(result.data);
     return true;
   } catch (error) {
-    showError(error.message);
+    const message = error?.message === 'Failed to fetch' || error?.message === 'Load failed'
+      ? 'No fue posible conectar con el backend seguro. Código de diagnóstico: API_CONNECTION_ERROR.'
+      : error?.message || 'No fue posible procesar la consulta. Código de diagnóstico: API_REQUEST_ERROR.';
+    showError(message);
     return false;
   } finally {
     setBusy(false);
@@ -1183,12 +1195,13 @@ elements.accessForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const key = elements.accessKeyInput.value;
   if (!isValidAccessKey(key)) return;
-  const succeeded = await requestPreview('/api/sri/fetch', { access_key: key });
+  const succeeded = await requestPreview('/api/purchases/v2/sri/fetch', { access_key: key });
   if (succeeded) failedSriAttempts = 0;
   else if (elements.accessKeyInput.value === attemptedKey) failedSriAttempts += 1;
   updateKeyState();
 });
 elements.clearKeyButton.addEventListener('click', resetInvoice);
+elements.sampleButton.hidden = POS_API_BASE_URL !== '';
 elements.sampleButton.addEventListener('click', () => requestPreview('/api/sample'));
 elements.resetButton.addEventListener('click', resetInvoice);
 elements.uploadButton.addEventListener('click', () => elements.xmlFileInput.click());
@@ -1198,7 +1211,7 @@ elements.xmlFileInput.addEventListener('change', async () => {
   if (!file) return;
   if (file.size > 5 * 1024 * 1024) return showError('El archivo supera el límite de 5 MB.');
   if (!file.name.toLowerCase().endsWith('.xml')) return showError('Selecciona un archivo XML.');
-  const succeeded = await requestPreview('/api/xml/preview', {
+  const succeeded = await requestPreview('/api/purchases/v2/xml/preview', {
     access_key: elements.accessKeyInput.value,
     xml: await file.text()
   });
