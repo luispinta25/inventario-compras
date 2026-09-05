@@ -54,7 +54,8 @@ let invoiceDraftSaveTimer = null;
 function readLocalCache(key) {
   try {
     const value = JSON.parse(localStorage.getItem(key) || 'null');
-    if (!value || Date.now() - Number(value.savedAt || Date.parse(value.timestamp)) > INVOICE_CACHE_TTL_MS) {
+    const savedAt = Number(value?.savedAt || Date.parse(value?.timestamp));
+    if (!value || !Number.isFinite(savedAt) || Date.now() - savedAt > INVOICE_CACHE_TTL_MS) {
       localStorage.removeItem(key);
       return null;
     }
@@ -833,10 +834,12 @@ function renderItems(items) {
         select.addEventListener('change', () => {
           item.sale_margin_percent = select.value === 'manual' ? 'manual' : Number(select.value);
           renderSalePrice();
+          scheduleInvoiceDraftSave();
         });
         priceInput.addEventListener('input', () => {
           const value = Number(priceInput.value);
           if (Number.isFinite(value) && value >= 0) item.sale_price = Math.round(value * 100) / 100;
+          scheduleInvoiceDraftSave();
         });
         label.append(' ', select);
         salePreview.append(label, price);
