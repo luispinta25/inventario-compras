@@ -710,8 +710,9 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .key-builder-insert { min-height: 38px; }
 .key-builder-insert.is-editing { background: #f1f3f5; border-color: #bac0c7; color: #55606b; }
 
-.key-builder-check { margin: 0 0 12px; font-size: 13px; color: var(--ink); }
-.key-builder-check strong { font-size: 20px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent-dark); }
+.key-builder-check { margin: 12px 0 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+.key-builder-check.is-ok { color: var(--green); }
+.key-builder-check.is-error { color: var(--red); }
 .key-builder-confirm { flex-direction: row !important; align-items: center; gap: 9px; font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; }
 .key-builder-confirm input { width: 17px; height: 17px; }
 

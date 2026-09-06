@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260906.3';
+const APP_BUILD = '20260906.4';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -44,8 +44,8 @@ const elements = Object.fromEntries([
   'appDialog', 'appDialogText', 'appDialogCancel', 'appDialogConfirm',
   'modeScanButton', 'modeBuildButton', 'keyBuilderForm', 'kbDay', 'kbMonth', 'kbYear',
   'kbProvider', 'kbProviderHint', 'kbProviderXmlButton', 'kbEstab', 'kbPtoEmi',
-  'kbSecuencial', 'kbInvoiceResolved', 'kbCodigo', 'kbCheckInfo', 'kbCheckConfirm',
-  'kbCheckConfirmLabel', 'kbPreview', 'kbPreviewCount', 'kbSubmit',
+  'kbSecuencial', 'kbInvoiceResolved', 'kbTail', 'kbCheckInfo',
+  'kbPreview', 'kbPreviewCount', 'kbSubmit',
   'kbInsertDate', 'kbInsertProvider', 'kbInsertNumber', 'kbInsertCode'
 ].map((id) => [id, document.getElementById(id)]));
 
@@ -2472,7 +2472,8 @@ const INTAKE_MODE_KEY = 'inventario-compras:modo-clave';
 // Los pasos se "insertan" de a uno: cada tramo confirmado se anida en la clave
 // que crece de izquierda a derecha, resaltado en verde. Los tramos fijos
 // (01 / 2 / 1) viajan con el paso que los precede, sin animación.
-const KEY_BUILDER_INSERT_LABELS = ['Insertar fecha', 'Insertar proveedor', 'Insertar número', 'Insertar código'];
+const KEY_BUILDER_INSERT_LABELS = ['Insertar fecha', 'Insertar proveedor', 'Insertar número', 'Verificar e insertar'];
+const KEY_BUILDER_INSERT_ICONS = ['fa-plus', 'fa-plus', 'fa-plus', 'fa-wand-magic-sparkles'];
 const KEY_BUILDER_MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -2480,7 +2481,7 @@ let intakeMode = 'scan';
 let keyBuilderProviders = [];
 let keyBuilderProvidersLoaded = false;
 let keyBuilderProvidersLoading = null;
-let keyBuilderConfirmed = [false, false, false, false, false];
+let keyBuilderConfirmed = [false, false, false, false];
 
 const onlyDigits = (value, max) => String(value || '').replace(/\D/g, '').slice(0, max);
 
@@ -2512,25 +2513,41 @@ function readKeyBuilderParts() {
   const serie = step3 ? estab.padStart(3, '0') + ptoEmi.padStart(3, '0') : '';
   const secuencial = step3 ? secuencialRaw.padStart(9, '0') : '';
 
-  const codigo = onlyDigits(elements.kbCodigo.value, 8);
-  const step4 = codigo.length === 8;
-
-  let key48 = '';
+  // Paso 4: los últimos 10 dígitos de la clave impresa = código numérico (8) +
+  // tipo de emisión (1) + dígito verificador (1). Se recalcula el verificador
+  // sobre los pasos 1-3 + esos dígitos y se compara con el impreso.
+  const tail = onlyDigits(elements.kbTail.value, 10);
+  let codigo = '';
+  let emision = '';
   let checkDigit = '';
+  let key48 = '';
   let key49 = '';
-  if (step1 && step2 && step3 && step4) {
-    key48 = `${fecha}01${ruc}2${serie}${secuencial}${codigo}1`;
-    const digit = calculateCheckDigit(key48);
-    if (digit != null) {
-      checkDigit = String(digit);
-      key49 = key48 + checkDigit;
+  let step4 = false;
+  let verifyError = '';
+  if (step1 && step2 && step3 && tail.length === 10) {
+    const codigoIn = tail.slice(0, 8);
+    const emisionIn = tail[8];
+    const printedCheck = tail[9];
+    const candidate48 = `${fecha}01${ruc}2${serie}${secuencial}${codigoIn}${emisionIn}`;
+    const computed = calculateCheckDigit(candidate48);
+    if (!['1', '2'].includes(emisionIn)) {
+      verifyError = 'El penúltimo dígito (tipo de emisión) debería ser 1. Revisa los últimos 10 dígitos de la clave.';
+    } else if (computed != null && String(computed) === printedCheck) {
+      codigo = codigoIn;
+      emision = emisionIn;
+      checkDigit = printedCheck;
+      key48 = candidate48;
+      key49 = candidate48 + printedCheck;
+      step4 = true;
+    } else {
+      verifyError = 'Esos 10 dígitos no cuadran con la fecha, el proveedor o el número de factura. Revisa esos pasos o vuelve a leer los dígitos de la clave.';
     }
   }
 
   return {
-    parts: { fecha, ruc, serie, secuencial, codigo, verificador: checkDigit },
+    parts: { fecha, ruc, serie, secuencial, codigo, emision, verificador: checkDigit },
     steps: [step1, step2, step3, step4],
-    key48, key49, checkDigit
+    key48, key49, checkDigit, tail, verifyError
   };
 }
 
@@ -2541,8 +2558,7 @@ function renderKeyBuilderKey(parts, checkDigit, confirmedCount) {
     parts.fecha ? `${parts.fecha}01` : '',
     parts.ruc ? `${parts.ruc}2` : '',
     (parts.serie && parts.secuencial) ? `${parts.serie}${parts.secuencial}` : '',
-    parts.codigo ? `${parts.codigo}1` : '',
-    checkDigit || ''
+    parts.codigo ? `${parts.codigo}${parts.emision || '1'}${checkDigit}` : ''
   ];
   let filled = '';
   for (let i = 0; i < confirmedCount; i += 1) filled += chunks[i];
@@ -2559,19 +2575,15 @@ function renderKeyBuilderKey(parts, checkDigit, confirmedCount) {
 }
 
 function renderKeyBuilder() {
-  const { parts, steps, checkDigit, key49 } = readKeyBuilderParts();
+  const { parts, steps, checkDigit, key49, tail, verifyError } = readKeyBuilderParts();
 
   // Si un paso confirmado dejó de ser válido, se desanida ese y los siguientes.
   for (let i = 0; i < 4; i += 1) {
     if (keyBuilderConfirmed[i] && !steps[i]) {
-      for (let j = i; j < 5; j += 1) keyBuilderConfirmed[j] = false;
-      if (elements.kbCheckConfirm.checked) elements.kbCheckConfirm.checked = false;
+      for (let j = i; j < 4; j += 1) keyBuilderConfirmed[j] = false;
       break;
     }
   }
-
-  const baseConfirmed = keyBuilderConfirmed.slice(0, 4).every(Boolean);
-  keyBuilderConfirmed[4] = baseConfirmed && elements.kbCheckConfirm.checked && Boolean(checkDigit);
 
   let confirmedCount = 0;
   for (const done of keyBuilderConfirmed) { if (!done) break; confirmedCount += 1; }
@@ -2581,12 +2593,12 @@ function renderKeyBuilder() {
     [elements.kbDay, elements.kbMonth, elements.kbYear],
     [elements.kbProvider],
     [elements.kbEstab, elements.kbPtoEmi, elements.kbSecuencial],
-    [elements.kbCodigo]
+    [elements.kbTail]
   ];
 
   // Solo se muestra un paso a la vez: el primero sin confirmar. Los confirmados
   // se ocultan y se vuelve a ellos con la flecha de regresar.
-  const currentStep = Math.min(confirmedCount, 4);
+  const currentStep = Math.min(confirmedCount, 3);
   document.querySelectorAll('#keyBuilderForm .key-builder-step').forEach((node) => {
     const index = Number(node.dataset.kbStep) - 1;
     node.hidden = index !== currentStep;
@@ -2594,20 +2606,25 @@ function renderKeyBuilder() {
   });
 
   buttons.forEach((button, index) => {
-    button.innerHTML = `<i class="fa-solid fa-plus" aria-hidden="true"></i> ${KEY_BUILDER_INSERT_LABELS[index]}`;
+    button.innerHTML = `<i class="fa-solid ${KEY_BUILDER_INSERT_ICONS[index]}" aria-hidden="true"></i> ${KEY_BUILDER_INSERT_LABELS[index]}`;
     button.disabled = !steps[index];
     fields[index].forEach((element) => { element.disabled = false; });
   });
 
-  elements.kbCheckConfirm.disabled = !baseConfirmed || !checkDigit;
-
-  if (baseConfirmed && checkDigit) {
-    elements.kbCheckInfo.innerHTML = 'La clave termina en <strong></strong>. Revisa que la clave impresa en el papel también termine en ese dígito.';
-    elements.kbCheckInfo.querySelector('strong').textContent = checkDigit;
-    elements.kbCheckConfirmLabel.textContent = `La clave impresa termina en ${checkDigit}`;
+  // Mensaje de la verificación (paso 4).
+  const check = elements.kbCheckInfo;
+  if (keyBuilderConfirmed[3]) {
+    check.textContent = `Verificado. La clave termina en ${checkDigit} y el dígito verificador coincide.`;
+    check.className = 'key-builder-check is-ok';
+  } else if (steps[3]) {
+    check.textContent = `Coincide. El dígito verificador es ${checkDigit}. Pulsa "Verificar e insertar".`;
+    check.className = 'key-builder-check is-ok';
+  } else if (tail.length === 10 && verifyError) {
+    check.textContent = verifyError;
+    check.className = 'key-builder-check is-error';
   } else {
-    elements.kbCheckInfo.textContent = 'Inserta los pasos anteriores para calcular el dígito verificador.';
-    elements.kbCheckConfirmLabel.textContent = 'La clave impresa termina en este dígito';
+    check.textContent = 'Ingresa los últimos 10 dígitos para comprobar.';
+    check.className = 'key-builder-check';
   }
 
   const resolved = elements.kbInvoiceResolved;
@@ -2619,7 +2636,7 @@ function renderKeyBuilder() {
   }
 
   renderKeyBuilderKey(parts, checkDigit, confirmedCount);
-  elements.kbSubmit.disabled = !(confirmedCount === 5 && isValidAccessKey(key49));
+  elements.kbSubmit.disabled = !(confirmedCount === 4 && isValidAccessKey(key49));
 }
 
 // Inserta el paso indicado (si es válido) y avanza al siguiente.
@@ -2634,12 +2651,11 @@ function confirmKeyBuilderStep(index) {
 function goBackKeyBuilderStep() {
   let confirmedCount = 0;
   for (const done of keyBuilderConfirmed) { if (!done) break; confirmedCount += 1; }
-  const target = Math.min(confirmedCount, 4) - 1;
+  const target = Math.min(confirmedCount, 3) - 1;
   if (target < 0) return;
-  for (let i = target; i < 5; i += 1) keyBuilderConfirmed[i] = false;
-  elements.kbCheckConfirm.checked = false;
+  for (let i = target; i < 4; i += 1) keyBuilderConfirmed[i] = false;
   renderKeyBuilder();
-  const focusTarget = [elements.kbDay, elements.kbProvider, elements.kbEstab, elements.kbCodigo][target];
+  const focusTarget = [elements.kbDay, elements.kbProvider, elements.kbEstab, elements.kbTail][target];
   if (focusTarget) focusTarget.focus();
 }
 
@@ -2661,7 +2677,7 @@ function populateKeyBuilderDate() {
 
 function resetKeyBuilder() {
   if (!elements.keyBuilderForm) return;
-  keyBuilderConfirmed = [false, false, false, false, false];
+  keyBuilderConfirmed = [false, false, false, false];
   const now = new Date();
   elements.kbDay.value = String(now.getDate()).padStart(2, '0');
   elements.kbMonth.value = String(now.getMonth() + 1).padStart(2, '0');
@@ -2670,8 +2686,7 @@ function resetKeyBuilder() {
   elements.kbEstab.value = '';
   elements.kbPtoEmi.value = '';
   elements.kbSecuencial.value = '';
-  elements.kbCodigo.value = '';
-  elements.kbCheckConfirm.checked = false;
+  elements.kbTail.value = '';
   renderKeyBuilder();
 }
 
@@ -2752,9 +2767,9 @@ if (elements.keyBuilderForm && !IS_MOBILE_DEVICE) {
   [elements.kbDay, elements.kbMonth, elements.kbYear].forEach((select) => {
     select.addEventListener('change', renderKeyBuilder);
   });
-  [elements.kbEstab, elements.kbPtoEmi, elements.kbSecuencial, elements.kbCodigo].forEach((input) => {
+  [elements.kbEstab, elements.kbPtoEmi, elements.kbSecuencial, elements.kbTail].forEach((input) => {
     input.addEventListener('input', () => {
-      input.value = onlyDigits(input.value, Number(input.getAttribute('maxlength')) || 9);
+      input.value = onlyDigits(input.value, Number(input.getAttribute('maxlength')) || 10);
       renderKeyBuilder();
     });
   });
@@ -2766,7 +2781,6 @@ if (elements.keyBuilderForm && !IS_MOBILE_DEVICE) {
     });
   });
   elements.kbProvider.addEventListener('change', renderKeyBuilder);
-  elements.kbCheckConfirm.addEventListener('change', renderKeyBuilder);
   elements.kbProviderXmlButton.addEventListener('click', () => elements.xmlFileInput.click());
   elements.kbInsertDate.addEventListener('click', () => confirmKeyBuilderStep(0));
   elements.kbInsertProvider.addEventListener('click', () => confirmKeyBuilderStep(1));
@@ -2779,7 +2793,7 @@ if (elements.keyBuilderForm && !IS_MOBILE_DEVICE) {
   elements.keyBuilderForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const { key49 } = readKeyBuilderParts();
-    if (!elements.kbCheckConfirm.checked || !isValidAccessKey(key49)) return;
+    if (!keyBuilderConfirmed.every(Boolean) || !isValidAccessKey(key49)) return;
     elements.accessKeyInput.value = key49;
     updateKeyState();
     const succeeded = await captureDesktopDocument({ preview: true });
