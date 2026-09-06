@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260905.15';
+const APP_BUILD = '20260906.1';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -41,7 +41,11 @@ const elements = Object.fromEntries([
   'ocrKeyFileGallery', 'ocrCrop', 'ocrCropStage', 'ocrCropImage',
   'ocrBarTop', 'ocrBarBottom', 'ocrShadeTop', 'ocrShadeBottom',
   'ocrLoupe', 'ocrLoupeCanvas', 'ocrCropCancel', 'ocrCropRun', 'ocrRotateButton',
-  'appDialog', 'appDialogText', 'appDialogCancel', 'appDialogConfirm'
+  'appDialog', 'appDialogText', 'appDialogCancel', 'appDialogConfirm',
+  'modeScanButton', 'modeBuildButton', 'keyBuilderForm', 'kbDay', 'kbMonth', 'kbYear',
+  'kbProvider', 'kbProviderHint', 'kbProviderXmlButton', 'kbEstab', 'kbPtoEmi',
+  'kbSecuencial', 'kbInvoiceResolved', 'kbCodigo', 'kbCheckInfo', 'kbCheckConfirm',
+  'kbCheckConfirmLabel', 'kbPreview', 'kbSubmit'
 ].map((id) => [id, document.getElementById(id)]));
 
 // Diálogo de confirmación propio, basado en promesas. Nunca window.confirm.
@@ -2444,7 +2448,8 @@ function resetInvoice({ release = true } = {}) {
   elements.review.hidden = true;
   clearError();
   updateKeyState();
-  if (!elements.appShell.hidden) elements.accessKeyInput.focus();
+  resetKeyBuilder();
+  if (!elements.appShell.hidden && intakeMode === 'scan') elements.accessKeyInput.focus();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -2458,6 +2463,259 @@ elements.accessForm.addEventListener('submit', async (event) => {
   else if (elements.accessKeyInput.value === attemptedKey) failedSriAttempts += 1;
   updateKeyState();
 });
+// ============ Reconstruir la clave de acceso paso a paso (solo PC) ============
+// La clave del SRI tiene una estructura fija; casi todo es deducible. Aquí se
+// arma tramo a tramo con lo impreso en la factura y solo se piden los 8 dígitos
+// del código numérico (no calculables). El verificador se calcula por módulo 11.
+const INTAKE_MODE_KEY = 'inventario-compras:modo-clave';
+const KEY_BUILDER_SEGMENTS = [
+  { name: 'Fecha', start: 0, length: 8, part: 'fecha' },
+  { name: 'Tipo', start: 8, length: 2, fixed: '01' },
+  { name: 'RUC', start: 10, length: 13, part: 'ruc' },
+  { name: 'Ambiente', start: 23, length: 1, fixed: '2' },
+  { name: 'Serie', start: 24, length: 6, part: 'serie' },
+  { name: 'Secuencial', start: 30, length: 9, part: 'secuencial' },
+  { name: 'Código', start: 39, length: 8, part: 'codigo' },
+  { name: 'Emisión', start: 47, length: 1, fixed: '1' },
+  { name: 'Verificador', start: 48, length: 1, part: 'verificador', check: true }
+];
+
+let intakeMode = 'scan';
+let keyBuilderProviders = [];
+let keyBuilderProvidersLoaded = false;
+let keyBuilderProvidersLoading = null;
+
+const onlyDigits = (value, max) => String(value || '').replace(/\D/g, '').slice(0, max);
+
+function keyBuilderProviderRuc() {
+  const provider = keyBuilderProviders.find((item) => item.id === elements.kbProvider.value);
+  return provider && /^\d{13}$/.test(provider.ruc) ? provider.ruc : '';
+}
+
+// Devuelve los tramos actuales (aunque estén incompletos) y la validez por paso.
+function readKeyBuilderParts() {
+  const day = onlyDigits(elements.kbDay.value, 2);
+  const month = onlyDigits(elements.kbMonth.value, 2);
+  const year = onlyDigits(elements.kbYear.value, 4);
+  const dayNum = Number(day);
+  const monthNum = Number(month);
+  const yearNum = Number(year);
+  const step1 = day.length >= 1 && month.length >= 1 && year.length === 4
+    && dayNum >= 1 && dayNum <= 31 && monthNum >= 1 && monthNum <= 12
+    && yearNum >= 2020 && yearNum <= 2035;
+  const fecha = step1 ? day.padStart(2, '0') + month.padStart(2, '0') + year : '';
+
+  const ruc = keyBuilderProviderRuc();
+  const step2 = ruc.length === 13;
+
+  const estab = onlyDigits(elements.kbEstab.value, 3);
+  const ptoEmi = onlyDigits(elements.kbPtoEmi.value, 3);
+  const secuencialRaw = onlyDigits(elements.kbSecuencial.value, 9);
+  const step3 = estab.length >= 1 && ptoEmi.length >= 1 && secuencialRaw.length >= 1;
+  const serie = step3 ? estab.padStart(3, '0') + ptoEmi.padStart(3, '0') : '';
+  const secuencial = step3 ? secuencialRaw.padStart(9, '0') : '';
+
+  const codigo = onlyDigits(elements.kbCodigo.value, 8);
+  const step4 = codigo.length === 8;
+
+  let key48 = '';
+  let checkDigit = '';
+  let key49 = '';
+  if (step1 && step2 && step3 && step4) {
+    key48 = `${fecha}01${ruc}2${serie}${secuencial}${codigo}1`;
+    const digit = calculateCheckDigit(key48);
+    if (digit != null) {
+      checkDigit = String(digit);
+      key49 = key48 + checkDigit;
+    }
+  }
+
+  return {
+    parts: { fecha, ruc, serie, secuencial, codigo, verificador: checkDigit },
+    steps: [step1, step2, step3, step4],
+    key48, key49, checkDigit
+  };
+}
+
+function renderKeyBuilderPreview(parts, key49) {
+  elements.kbPreview.textContent = '';
+  KEY_BUILDER_SEGMENTS.forEach((segment) => {
+    const value = segment.fixed || (key49 ? key49.slice(segment.start, segment.start + segment.length) : parts[segment.part] || '');
+    const filled = value.length === segment.length;
+    const seg = document.createElement('span');
+    seg.className = 'kb-seg';
+    if (filled) seg.classList.add('is-filled');
+    if (segment.fixed) seg.classList.add('is-fixed');
+    if (segment.check) seg.classList.add('is-check');
+    const digits = document.createElement('span');
+    digits.className = 'kb-seg-digits';
+    digits.textContent = filled ? value : (value + '•'.repeat(segment.length - value.length));
+    const label = document.createElement('span');
+    label.className = 'kb-seg-name';
+    label.textContent = segment.name;
+    seg.append(digits, label);
+    elements.kbPreview.appendChild(seg);
+  });
+}
+
+function renderKeyBuilder() {
+  const { parts, steps, checkDigit, key49 } = readKeyBuilderParts();
+  let previousDone = true;
+  document.querySelectorAll('#keyBuilderForm .key-builder-step').forEach((node) => {
+    const index = Number(node.dataset.kbStep) - 1;
+    const isCheckStep = index === 4;
+    node.hidden = !previousDone;
+    const done = isCheckStep ? (previousDone && elements.kbCheckConfirm.checked) : Boolean(steps[index]);
+    node.classList.toggle('is-complete', done && !node.hidden);
+    if (!isCheckStep) previousDone = previousDone && Boolean(steps[index]);
+  });
+
+  const baseReady = steps.every(Boolean);
+  if (!baseReady && elements.kbCheckConfirm.checked) elements.kbCheckConfirm.checked = false;
+
+  if (baseReady && checkDigit) {
+    elements.kbCheckInfo.innerHTML = 'La clave termina en <strong></strong>. Revisa que la clave impresa en el papel también termine en ese dígito.';
+    elements.kbCheckInfo.querySelector('strong').textContent = checkDigit;
+    elements.kbCheckConfirmLabel.textContent = `La clave impresa termina en ${checkDigit}`;
+  } else {
+    elements.kbCheckInfo.textContent = 'Completa los pasos anteriores para calcular el dígito verificador.';
+    elements.kbCheckConfirmLabel.textContent = 'La clave impresa termina en este dígito';
+  }
+
+  const resolved = elements.kbInvoiceResolved;
+  if (parts.serie && parts.secuencial) {
+    resolved.hidden = false;
+    resolved.textContent = `Número de factura: ${parts.serie.slice(0, 3)}-${parts.serie.slice(3)}-${parts.secuencial}`;
+  } else {
+    resolved.hidden = true;
+  }
+
+  renderKeyBuilderPreview(parts, key49);
+  elements.kbSubmit.disabled = !(baseReady && elements.kbCheckConfirm.checked && isValidAccessKey(key49));
+}
+
+function resetKeyBuilder() {
+  if (!elements.keyBuilderForm) return;
+  const now = new Date();
+  elements.kbDay.value = String(now.getDate()).padStart(2, '0');
+  elements.kbMonth.value = String(now.getMonth() + 1).padStart(2, '0');
+  elements.kbYear.value = String(now.getFullYear());
+  elements.kbProvider.value = '';
+  elements.kbEstab.value = '';
+  elements.kbPtoEmi.value = '';
+  elements.kbSecuencial.value = '';
+  elements.kbCodigo.value = '';
+  elements.kbCheckConfirm.checked = false;
+  renderKeyBuilder();
+}
+
+function setKeyBuilderProviderPlaceholder(text) {
+  elements.kbProvider.textContent = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = text;
+  elements.kbProvider.appendChild(placeholder);
+}
+
+async function loadKeyBuilderProviders() {
+  if (keyBuilderProvidersLoaded) return;
+  if (keyBuilderProvidersLoading) return keyBuilderProvidersLoading;
+  setKeyBuilderProviderPlaceholder('Cargando proveedores…');
+  elements.kbProvider.disabled = true;
+  keyBuilderProvidersLoading = (async () => {
+    try {
+      const response = await posApiRequest('/api/purchases/v2/providers');
+      const rows = Array.isArray(response?.data) ? response.data : [];
+      keyBuilderProviders = rows
+        .map((row) => ({
+          id: row.id,
+          empresa: row.empresa || row.razon_social || 'Proveedor',
+          ruc: String(row.ruc || '').replace(/\D/g, ''),
+          razon_social: row.razon_social || ''
+        }))
+        .filter((row) => /^\d{13}$/.test(row.ruc))
+        .sort((a, b) => a.empresa.localeCompare(b.empresa, 'es'));
+      setKeyBuilderProviderPlaceholder(keyBuilderProviders.length
+        ? 'Selecciona un proveedor'
+        : 'No hay proveedores con RUC vinculado');
+      keyBuilderProviders.forEach((provider) => {
+        const option = document.createElement('option');
+        option.value = provider.id;
+        option.textContent = `${provider.empresa} · ${provider.ruc}`;
+        elements.kbProvider.appendChild(option);
+      });
+      elements.kbProvider.disabled = keyBuilderProviders.length === 0;
+      keyBuilderProvidersLoaded = true;
+    } catch (error) {
+      setKeyBuilderProviderPlaceholder('No fue posible cargar los proveedores');
+      elements.kbProvider.disabled = true;
+    } finally {
+      keyBuilderProvidersLoading = null;
+      renderKeyBuilder();
+    }
+  })();
+  return keyBuilderProvidersLoading;
+}
+
+function setIntakeMode(mode, { persist = true } = {}) {
+  intakeMode = mode === 'build' ? 'build' : 'scan';
+  const building = intakeMode === 'build';
+  elements.accessForm.hidden = building;
+  elements.keyBuilderForm.hidden = !building;
+  elements.modeScanButton.classList.toggle('is-active', !building);
+  elements.modeBuildButton.classList.toggle('is-active', building);
+  elements.modeScanButton.setAttribute('aria-selected', String(!building));
+  elements.modeBuildButton.setAttribute('aria-selected', String(building));
+  if (persist) {
+    try { localStorage.setItem(INTAKE_MODE_KEY, intakeMode); } catch (_) { /* almacenamiento no disponible */ }
+  }
+  if (building) {
+    loadKeyBuilderProviders();
+    renderKeyBuilder();
+  } else {
+    elements.accessKeyInput.focus();
+  }
+}
+
+if (elements.keyBuilderForm && !IS_MOBILE_DEVICE) {
+  elements.modeScanButton.addEventListener('click', () => setIntakeMode('scan'));
+  elements.modeBuildButton.addEventListener('click', () => setIntakeMode('build'));
+
+  [elements.kbDay, elements.kbMonth, elements.kbYear, elements.kbEstab,
+    elements.kbPtoEmi, elements.kbSecuencial, elements.kbCodigo].forEach((input) => {
+    input.addEventListener('input', () => {
+      input.value = onlyDigits(input.value, Number(input.getAttribute('maxlength')) || 9);
+      renderKeyBuilder();
+    });
+  });
+  [elements.kbEstab, elements.kbPtoEmi, elements.kbSecuencial].forEach((input) => {
+    input.addEventListener('blur', () => {
+      const width = input === elements.kbSecuencial ? 9 : 3;
+      if (input.value) input.value = onlyDigits(input.value, width).padStart(width, '0');
+      renderKeyBuilder();
+    });
+  });
+  elements.kbProvider.addEventListener('change', renderKeyBuilder);
+  elements.kbCheckConfirm.addEventListener('change', renderKeyBuilder);
+  elements.kbProviderXmlButton.addEventListener('click', () => elements.xmlFileInput.click());
+
+  elements.keyBuilderForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const { key49 } = readKeyBuilderParts();
+    if (!elements.kbCheckConfirm.checked || !isValidAccessKey(key49)) return;
+    elements.accessKeyInput.value = key49;
+    updateKeyState();
+    const succeeded = await captureDesktopDocument({ preview: true });
+    if (succeeded) failedSriAttempts = 0;
+    updateKeyState();
+  });
+
+  resetKeyBuilder();
+  let storedMode = 'scan';
+  try { storedMode = localStorage.getItem(INTAKE_MODE_KEY) || 'scan'; } catch (_) { /* sin almacenamiento */ }
+  if (storedMode === 'build') setIntakeMode('build', { persist: false });
+}
+
 elements.saveToPendingButton.addEventListener('click', async () => {
   if (elements.saveToPendingButton.disabled) return;
   elements.saveToPendingButton.disabled = true;

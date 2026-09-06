@@ -138,6 +138,17 @@
             </button>
           </div>
 
+          <div class="intake-mode" role="tablist" aria-label="Cómo ingresar la clave de acceso">
+            <button type="button" class="intake-mode-option is-active" id="modeScanButton" role="tab" aria-selected="true">
+              <i class="fa-solid fa-barcode" aria-hidden="true"></i>
+              Escanear
+            </button>
+            <button type="button" class="intake-mode-option" id="modeBuildButton" role="tab" aria-selected="false">
+              <i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i>
+              Reconstruir clave
+            </button>
+          </div>
+
           <form class="access-form" id="accessForm" novalidate>
             <label for="accessKeyInput">Clave de acceso</label>
             <div class="access-input-row">
@@ -164,6 +175,78 @@
               <span id="keyStatus">Esperando clave</span>
               <strong id="keyCount">0/49</strong>
             </div>
+          </form>
+
+          <form class="key-builder" id="keyBuilderForm" novalidate hidden>
+            <p class="key-builder-intro">
+              Arma la clave paso a paso con los datos impresos en la factura. Los tramos fijos
+              (tipo de comprobante <code>01</code>, ambiente producción <code>2</code> y tipo de emisión <code>1</code>)
+              se completan solos.
+            </p>
+
+            <ol class="key-builder-steps">
+              <li class="key-builder-step" data-kb-step="1">
+                <div class="key-builder-step-head"><span class="key-builder-step-num">1</span><h3>Fecha de emisión</h3></div>
+                <p class="key-builder-hint">Toma la fecha de la factura. Por defecto es la de hoy.</p>
+                <div class="key-builder-date">
+                  <label>Día<input id="kbDay" inputmode="numeric" maxlength="2" autocomplete="off"></label>
+                  <label>Mes<input id="kbMonth" inputmode="numeric" maxlength="2" autocomplete="off"></label>
+                  <label>Año<input id="kbYear" inputmode="numeric" maxlength="4" autocomplete="off"></label>
+                </div>
+              </li>
+
+              <li class="key-builder-step" data-kb-step="2" hidden>
+                <div class="key-builder-step-head"><span class="key-builder-step-num">2</span><h3>Proveedor</h3></div>
+                <p class="key-builder-hint">Solo aparecen proveedores con RUC vinculado, para tomar el RUC y la razón social sin errores.</p>
+                <select id="kbProvider" class="key-builder-select">
+                  <option value="">Selecciona un proveedor</option>
+                </select>
+                <p class="key-builder-note" id="kbProviderHint">
+                  ¿No está tu proveedor? Necesita el RUC vinculado.
+                  <button type="button" class="link-button" id="kbProviderXmlButton">Carga el XML de la factura</button>
+                  o súbela desde el móvil para vincularlo sin errores.
+                </p>
+              </li>
+
+              <li class="key-builder-step" data-kb-step="3" hidden>
+                <div class="key-builder-step-head"><span class="key-builder-step-num">3</span><h3>Número de factura</h3></div>
+                <p class="key-builder-hint">Establecimiento, punto de emisión y secuencial. Si escribes menos dígitos, se rellenan con ceros a la izquierda.</p>
+                <div class="key-builder-invoice-no">
+                  <label>Estab.<input id="kbEstab" inputmode="numeric" maxlength="3" autocomplete="off" placeholder="001"></label>
+                  <span aria-hidden="true">-</span>
+                  <label>Pto. emisión<input id="kbPtoEmi" inputmode="numeric" maxlength="3" autocomplete="off" placeholder="002"></label>
+                  <span aria-hidden="true">-</span>
+                  <label>Secuencial<input id="kbSecuencial" inputmode="numeric" maxlength="9" autocomplete="off" placeholder="000123401"></label>
+                </div>
+                <p class="key-builder-resolved" id="kbInvoiceResolved" hidden></p>
+              </li>
+
+              <li class="key-builder-step" data-kb-step="4" hidden>
+                <div class="key-builder-step-head"><span class="key-builder-step-num">4</span><h3>Código numérico</h3></div>
+                <p class="key-builder-hint">Los 8 dígitos que no se pueden calcular. En la clave impresa son las posiciones 37 a 44.</p>
+                <input id="kbCodigo" class="key-builder-code" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="8 dígitos">
+              </li>
+
+              <li class="key-builder-step" data-kb-step="5" hidden>
+                <div class="key-builder-step-head"><span class="key-builder-step-num">5</span><h3>Verificación</h3></div>
+                <p class="key-builder-hint">El dígito verificador se calcula solo. Confirma que la clave impresa termina en el mismo número; si no coincide, hay algo mal ingresado.</p>
+                <p class="key-builder-check" id="kbCheckInfo"></p>
+                <label class="key-builder-confirm">
+                  <input type="checkbox" id="kbCheckConfirm">
+                  <span id="kbCheckConfirmLabel">La clave impresa termina en este dígito</span>
+                </label>
+              </li>
+            </ol>
+
+            <div class="key-builder-preview" aria-live="polite">
+              <span class="key-builder-preview-label">Clave de acceso</span>
+              <div class="key-builder-preview-key" id="kbPreview"></div>
+            </div>
+
+            <button type="submit" class="button button-primary" id="kbSubmit" disabled>
+              <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+              Consultar SRI
+            </button>
           </form>
 
           <div class="loading-row" id="loadingRow" hidden>
