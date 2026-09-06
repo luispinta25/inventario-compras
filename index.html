@@ -186,7 +186,11 @@
 
             <ol class="key-builder-steps">
               <li class="key-builder-step" data-kb-step="1">
-                <div class="key-builder-step-head"><span class="key-builder-step-num">1</span><h3>Fecha de emisión</h3></div>
+                <div class="key-builder-step-head">
+                  <span class="key-builder-step-num">1</span>
+                  <h3>Fecha de emisión</h3>
+                  <span class="key-builder-step-of">Paso 1 de 5</span>
+                </div>
                 <p class="key-builder-hint">Toma la fecha de la factura. Por defecto es la de hoy.</p>
                 <div class="key-builder-date">
                   <label>Día<select id="kbDay" class="key-builder-select"></select></label>
@@ -201,7 +205,12 @@
               </li>
 
               <li class="key-builder-step" data-kb-step="2" hidden>
-                <div class="key-builder-step-head"><span class="key-builder-step-num">2</span><h3>Proveedor</h3></div>
+                <div class="key-builder-step-head">
+                  <button type="button" class="key-builder-back" data-kb-back aria-label="Regresar al paso anterior"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i></button>
+                  <span class="key-builder-step-num">2</span>
+                  <h3>Proveedor</h3>
+                  <span class="key-builder-step-of">Paso 2 de 5</span>
+                </div>
                 <p class="key-builder-hint">Solo aparecen proveedores con RUC vinculado, para tomar el RUC y la razón social sin errores.</p>
                 <select id="kbProvider" class="key-builder-select">
                   <option value="">Selecciona un proveedor</option>
@@ -219,7 +228,12 @@
               </li>
 
               <li class="key-builder-step" data-kb-step="3" hidden>
-                <div class="key-builder-step-head"><span class="key-builder-step-num">3</span><h3>Número de factura</h3></div>
+                <div class="key-builder-step-head">
+                  <button type="button" class="key-builder-back" data-kb-back aria-label="Regresar al paso anterior"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i></button>
+                  <span class="key-builder-step-num">3</span>
+                  <h3>Número de factura</h3>
+                  <span class="key-builder-step-of">Paso 3 de 5</span>
+                </div>
                 <p class="key-builder-hint">Establecimiento, punto de emisión y secuencial. Si escribes menos dígitos, se rellenan con ceros a la izquierda.</p>
                 <div class="key-builder-invoice-no">
                   <label>Estab.<input id="kbEstab" inputmode="numeric" maxlength="3" autocomplete="off" placeholder="001"></label>
@@ -237,7 +251,12 @@
               </li>
 
               <li class="key-builder-step" data-kb-step="4" hidden>
-                <div class="key-builder-step-head"><span class="key-builder-step-num">4</span><h3>Código numérico</h3></div>
+                <div class="key-builder-step-head">
+                  <button type="button" class="key-builder-back" data-kb-back aria-label="Regresar al paso anterior"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i></button>
+                  <span class="key-builder-step-num">4</span>
+                  <h3>Código numérico</h3>
+                  <span class="key-builder-step-of">Paso 4 de 5</span>
+                </div>
                 <p class="key-builder-hint">Los 8 dígitos que no se pueden calcular. En la clave impresa son las posiciones 37 a 44.</p>
                 <input id="kbCodigo" class="key-builder-code" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="8 dígitos">
                 <div class="key-builder-actions">
@@ -248,7 +267,12 @@
               </li>
 
               <li class="key-builder-step" data-kb-step="5" hidden>
-                <div class="key-builder-step-head"><span class="key-builder-step-num">5</span><h3>Verificación</h3></div>
+                <div class="key-builder-step-head">
+                  <button type="button" class="key-builder-back" data-kb-back aria-label="Regresar al paso anterior"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i></button>
+                  <span class="key-builder-step-num">5</span>
+                  <h3>Verificación</h3>
+                  <span class="key-builder-step-of">Paso 5 de 5</span>
+                </div>
                 <p class="key-builder-hint">El dígito verificador se calcula solo. Confirma que la clave impresa termina en el mismo número; si no coincide, hay algo mal ingresado.</p>
                 <p class="key-builder-check" id="kbCheckInfo"></p>
                 <label class="key-builder-confirm">

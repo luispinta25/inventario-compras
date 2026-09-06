@@ -675,6 +675,9 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .key-builder-step.is-complete { border-color: #bfe2cd; background: #f6fcf8; }
 .key-builder-step-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .key-builder-step-head h3 { margin: 0; font-size: 15px; }
+.key-builder-step-of { margin-left: auto; color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; }
+.key-builder-back { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 1px solid #bac0c7; border-radius: 6px; background: #fff; color: #55606b; cursor: pointer; }
+.key-builder-back:hover { background: var(--soft); }
 .key-builder-step-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #1c1c1c; font-size: 12px; font-weight: 850; }
 .key-builder-step.is-complete .key-builder-step-num { background: var(--green); color: #fff; }
 .key-builder-hint { margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.45; }

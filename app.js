@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260906.2';
+const APP_BUILD = '20260906.3';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -2584,22 +2584,19 @@ function renderKeyBuilder() {
     [elements.kbCodigo]
   ];
 
+  // Solo se muestra un paso a la vez: el primero sin confirmar. Los confirmados
+  // se ocultan y se vuelve a ellos con la flecha de regresar.
+  const currentStep = Math.min(confirmedCount, 4);
   document.querySelectorAll('#keyBuilderForm .key-builder-step').forEach((node) => {
     const index = Number(node.dataset.kbStep) - 1;
-    const prevConfirmed = keyBuilderConfirmed.slice(0, index).every(Boolean);
-    node.hidden = !prevConfirmed;
-    node.classList.toggle('is-complete', Boolean(keyBuilderConfirmed[index]));
-    node.classList.toggle('is-active', prevConfirmed && !keyBuilderConfirmed[index]);
+    node.hidden = index !== currentStep;
+    node.classList.toggle('is-active', index === currentStep);
   });
 
   buttons.forEach((button, index) => {
-    const confirmed = keyBuilderConfirmed[index];
-    button.classList.toggle('is-editing', confirmed);
-    button.innerHTML = confirmed
-      ? '<i class="fa-solid fa-pen" aria-hidden="true"></i> Editar'
-      : `<i class="fa-solid fa-plus" aria-hidden="true"></i> ${KEY_BUILDER_INSERT_LABELS[index]}`;
-    button.disabled = !confirmed && !steps[index];
-    fields[index].forEach((element) => { element.disabled = confirmed; });
+    button.innerHTML = `<i class="fa-solid fa-plus" aria-hidden="true"></i> ${KEY_BUILDER_INSERT_LABELS[index]}`;
+    button.disabled = !steps[index];
+    fields[index].forEach((element) => { element.disabled = false; });
   });
 
   elements.kbCheckConfirm.disabled = !baseConfirmed || !checkDigit;
@@ -2625,20 +2622,25 @@ function renderKeyBuilder() {
   elements.kbSubmit.disabled = !(confirmedCount === 5 && isValidAccessKey(key49));
 }
 
-// Inserta el paso (si es válido) o vuelve a editarlo, desanidando los siguientes.
-function toggleKeyBuilderStep(index) {
-  if (keyBuilderConfirmed[index]) {
-    for (let i = index; i < 5; i += 1) keyBuilderConfirmed[i] = false;
-    elements.kbCheckConfirm.checked = false;
-    renderKeyBuilder();
-    const focusTarget = [elements.kbDay, elements.kbProvider, elements.kbEstab, elements.kbCodigo][index];
-    if (focusTarget) focusTarget.focus();
-    return;
-  }
+// Inserta el paso indicado (si es válido) y avanza al siguiente.
+function confirmKeyBuilderStep(index) {
   const { steps } = readKeyBuilderParts();
   if (!steps[index]) return;
   keyBuilderConfirmed[index] = true;
   renderKeyBuilder();
+}
+
+// Flecha de regresar: vuelve al paso anterior y lo deja editable.
+function goBackKeyBuilderStep() {
+  let confirmedCount = 0;
+  for (const done of keyBuilderConfirmed) { if (!done) break; confirmedCount += 1; }
+  const target = Math.min(confirmedCount, 4) - 1;
+  if (target < 0) return;
+  for (let i = target; i < 5; i += 1) keyBuilderConfirmed[i] = false;
+  elements.kbCheckConfirm.checked = false;
+  renderKeyBuilder();
+  const focusTarget = [elements.kbDay, elements.kbProvider, elements.kbEstab, elements.kbCodigo][target];
+  if (focusTarget) focusTarget.focus();
 }
 
 function populateKeyBuilderDate() {
@@ -2766,10 +2768,13 @@ if (elements.keyBuilderForm && !IS_MOBILE_DEVICE) {
   elements.kbProvider.addEventListener('change', renderKeyBuilder);
   elements.kbCheckConfirm.addEventListener('change', renderKeyBuilder);
   elements.kbProviderXmlButton.addEventListener('click', () => elements.xmlFileInput.click());
-  elements.kbInsertDate.addEventListener('click', () => toggleKeyBuilderStep(0));
-  elements.kbInsertProvider.addEventListener('click', () => toggleKeyBuilderStep(1));
-  elements.kbInsertNumber.addEventListener('click', () => toggleKeyBuilderStep(2));
-  elements.kbInsertCode.addEventListener('click', () => toggleKeyBuilderStep(3));
+  elements.kbInsertDate.addEventListener('click', () => confirmKeyBuilderStep(0));
+  elements.kbInsertProvider.addEventListener('click', () => confirmKeyBuilderStep(1));
+  elements.kbInsertNumber.addEventListener('click', () => confirmKeyBuilderStep(2));
+  elements.kbInsertCode.addEventListener('click', () => confirmKeyBuilderStep(3));
+  elements.keyBuilderForm.addEventListener('click', (event) => {
+    if (event.target.closest('[data-kb-back]')) goBackKeyBuilderStep();
+  });
 
   elements.keyBuilderForm.addEventListener('submit', async (event) => {
     event.preventDefault();
