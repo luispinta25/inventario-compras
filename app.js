@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260906.1';
+const APP_BUILD = '20260906.2';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -45,7 +45,8 @@ const elements = Object.fromEntries([
   'modeScanButton', 'modeBuildButton', 'keyBuilderForm', 'kbDay', 'kbMonth', 'kbYear',
   'kbProvider', 'kbProviderHint', 'kbProviderXmlButton', 'kbEstab', 'kbPtoEmi',
   'kbSecuencial', 'kbInvoiceResolved', 'kbCodigo', 'kbCheckInfo', 'kbCheckConfirm',
-  'kbCheckConfirmLabel', 'kbPreview', 'kbSubmit'
+  'kbCheckConfirmLabel', 'kbPreview', 'kbPreviewCount', 'kbSubmit',
+  'kbInsertDate', 'kbInsertProvider', 'kbInsertNumber', 'kbInsertCode'
 ].map((id) => [id, document.getElementById(id)]));
 
 // Diálogo de confirmación propio, basado en promesas. Nunca window.confirm.
@@ -2468,22 +2469,18 @@ elements.accessForm.addEventListener('submit', async (event) => {
 // arma tramo a tramo con lo impreso en la factura y solo se piden los 8 dígitos
 // del código numérico (no calculables). El verificador se calcula por módulo 11.
 const INTAKE_MODE_KEY = 'inventario-compras:modo-clave';
-const KEY_BUILDER_SEGMENTS = [
-  { name: 'Fecha', start: 0, length: 8, part: 'fecha' },
-  { name: 'Tipo', start: 8, length: 2, fixed: '01' },
-  { name: 'RUC', start: 10, length: 13, part: 'ruc' },
-  { name: 'Ambiente', start: 23, length: 1, fixed: '2' },
-  { name: 'Serie', start: 24, length: 6, part: 'serie' },
-  { name: 'Secuencial', start: 30, length: 9, part: 'secuencial' },
-  { name: 'Código', start: 39, length: 8, part: 'codigo' },
-  { name: 'Emisión', start: 47, length: 1, fixed: '1' },
-  { name: 'Verificador', start: 48, length: 1, part: 'verificador', check: true }
-];
+// Los pasos se "insertan" de a uno: cada tramo confirmado se anida en la clave
+// que crece de izquierda a derecha, resaltado en verde. Los tramos fijos
+// (01 / 2 / 1) viajan con el paso que los precede, sin animación.
+const KEY_BUILDER_INSERT_LABELS = ['Insertar fecha', 'Insertar proveedor', 'Insertar número', 'Insertar código'];
+const KEY_BUILDER_MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 let intakeMode = 'scan';
 let keyBuilderProviders = [];
 let keyBuilderProvidersLoaded = false;
 let keyBuilderProvidersLoading = null;
+let keyBuilderConfirmed = [false, false, false, false, false];
 
 const onlyDigits = (value, max) => String(value || '').replace(/\D/g, '').slice(0, max);
 
@@ -2537,48 +2534,82 @@ function readKeyBuilderParts() {
   };
 }
 
-function renderKeyBuilderPreview(parts, key49) {
+// Une los tramos ya confirmados y pinta la clave como un único bloque verde que
+// crece; el resto quedan como puntos. Sin animación.
+function renderKeyBuilderKey(parts, checkDigit, confirmedCount) {
+  const chunks = [
+    parts.fecha ? `${parts.fecha}01` : '',
+    parts.ruc ? `${parts.ruc}2` : '',
+    (parts.serie && parts.secuencial) ? `${parts.serie}${parts.secuencial}` : '',
+    parts.codigo ? `${parts.codigo}1` : '',
+    checkDigit || ''
+  ];
+  let filled = '';
+  for (let i = 0; i < confirmedCount; i += 1) filled += chunks[i];
+  filled = filled.slice(0, 49);
   elements.kbPreview.textContent = '';
-  KEY_BUILDER_SEGMENTS.forEach((segment) => {
-    const value = segment.fixed || (key49 ? key49.slice(segment.start, segment.start + segment.length) : parts[segment.part] || '');
-    const filled = value.length === segment.length;
-    const seg = document.createElement('span');
-    seg.className = 'kb-seg';
-    if (filled) seg.classList.add('is-filled');
-    if (segment.fixed) seg.classList.add('is-fixed');
-    if (segment.check) seg.classList.add('is-check');
-    const digits = document.createElement('span');
-    digits.className = 'kb-seg-digits';
-    digits.textContent = filled ? value : (value + '•'.repeat(segment.length - value.length));
-    const label = document.createElement('span');
-    label.className = 'kb-seg-name';
-    label.textContent = segment.name;
-    seg.append(digits, label);
-    elements.kbPreview.appendChild(seg);
-  });
+  const on = document.createElement('span');
+  on.className = 'kb-key-on';
+  on.textContent = filled;
+  const off = document.createElement('span');
+  off.className = 'kb-key-off';
+  off.textContent = '•'.repeat(Math.max(0, 49 - filled.length));
+  elements.kbPreview.append(on, off);
+  elements.kbPreviewCount.textContent = `${filled.length} de 49`;
 }
 
 function renderKeyBuilder() {
   const { parts, steps, checkDigit, key49 } = readKeyBuilderParts();
-  let previousDone = true;
+
+  // Si un paso confirmado dejó de ser válido, se desanida ese y los siguientes.
+  for (let i = 0; i < 4; i += 1) {
+    if (keyBuilderConfirmed[i] && !steps[i]) {
+      for (let j = i; j < 5; j += 1) keyBuilderConfirmed[j] = false;
+      if (elements.kbCheckConfirm.checked) elements.kbCheckConfirm.checked = false;
+      break;
+    }
+  }
+
+  const baseConfirmed = keyBuilderConfirmed.slice(0, 4).every(Boolean);
+  keyBuilderConfirmed[4] = baseConfirmed && elements.kbCheckConfirm.checked && Boolean(checkDigit);
+
+  let confirmedCount = 0;
+  for (const done of keyBuilderConfirmed) { if (!done) break; confirmedCount += 1; }
+
+  const buttons = [elements.kbInsertDate, elements.kbInsertProvider, elements.kbInsertNumber, elements.kbInsertCode];
+  const fields = [
+    [elements.kbDay, elements.kbMonth, elements.kbYear],
+    [elements.kbProvider],
+    [elements.kbEstab, elements.kbPtoEmi, elements.kbSecuencial],
+    [elements.kbCodigo]
+  ];
+
   document.querySelectorAll('#keyBuilderForm .key-builder-step').forEach((node) => {
     const index = Number(node.dataset.kbStep) - 1;
-    const isCheckStep = index === 4;
-    node.hidden = !previousDone;
-    const done = isCheckStep ? (previousDone && elements.kbCheckConfirm.checked) : Boolean(steps[index]);
-    node.classList.toggle('is-complete', done && !node.hidden);
-    if (!isCheckStep) previousDone = previousDone && Boolean(steps[index]);
+    const prevConfirmed = keyBuilderConfirmed.slice(0, index).every(Boolean);
+    node.hidden = !prevConfirmed;
+    node.classList.toggle('is-complete', Boolean(keyBuilderConfirmed[index]));
+    node.classList.toggle('is-active', prevConfirmed && !keyBuilderConfirmed[index]);
   });
 
-  const baseReady = steps.every(Boolean);
-  if (!baseReady && elements.kbCheckConfirm.checked) elements.kbCheckConfirm.checked = false;
+  buttons.forEach((button, index) => {
+    const confirmed = keyBuilderConfirmed[index];
+    button.classList.toggle('is-editing', confirmed);
+    button.innerHTML = confirmed
+      ? '<i class="fa-solid fa-pen" aria-hidden="true"></i> Editar'
+      : `<i class="fa-solid fa-plus" aria-hidden="true"></i> ${KEY_BUILDER_INSERT_LABELS[index]}`;
+    button.disabled = !confirmed && !steps[index];
+    fields[index].forEach((element) => { element.disabled = confirmed; });
+  });
 
-  if (baseReady && checkDigit) {
+  elements.kbCheckConfirm.disabled = !baseConfirmed || !checkDigit;
+
+  if (baseConfirmed && checkDigit) {
     elements.kbCheckInfo.innerHTML = 'La clave termina en <strong></strong>. Revisa que la clave impresa en el papel también termine en ese dígito.';
     elements.kbCheckInfo.querySelector('strong').textContent = checkDigit;
     elements.kbCheckConfirmLabel.textContent = `La clave impresa termina en ${checkDigit}`;
   } else {
-    elements.kbCheckInfo.textContent = 'Completa los pasos anteriores para calcular el dígito verificador.';
+    elements.kbCheckInfo.textContent = 'Inserta los pasos anteriores para calcular el dígito verificador.';
     elements.kbCheckConfirmLabel.textContent = 'La clave impresa termina en este dígito';
   }
 
@@ -2590,12 +2621,45 @@ function renderKeyBuilder() {
     resolved.hidden = true;
   }
 
-  renderKeyBuilderPreview(parts, key49);
-  elements.kbSubmit.disabled = !(baseReady && elements.kbCheckConfirm.checked && isValidAccessKey(key49));
+  renderKeyBuilderKey(parts, checkDigit, confirmedCount);
+  elements.kbSubmit.disabled = !(confirmedCount === 5 && isValidAccessKey(key49));
+}
+
+// Inserta el paso (si es válido) o vuelve a editarlo, desanidando los siguientes.
+function toggleKeyBuilderStep(index) {
+  if (keyBuilderConfirmed[index]) {
+    for (let i = index; i < 5; i += 1) keyBuilderConfirmed[i] = false;
+    elements.kbCheckConfirm.checked = false;
+    renderKeyBuilder();
+    const focusTarget = [elements.kbDay, elements.kbProvider, elements.kbEstab, elements.kbCodigo][index];
+    if (focusTarget) focusTarget.focus();
+    return;
+  }
+  const { steps } = readKeyBuilderParts();
+  if (!steps[index]) return;
+  keyBuilderConfirmed[index] = true;
+  renderKeyBuilder();
+}
+
+function populateKeyBuilderDate() {
+  const addOption = (select, value, label) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    select.appendChild(option);
+  };
+  elements.kbDay.textContent = '';
+  for (let day = 1; day <= 31; day += 1) addOption(elements.kbDay, String(day).padStart(2, '0'), String(day));
+  elements.kbMonth.textContent = '';
+  KEY_BUILDER_MONTHS.forEach((name, index) => addOption(elements.kbMonth, String(index + 1).padStart(2, '0'), name));
+  elements.kbYear.textContent = '';
+  const thisYear = new Date().getFullYear();
+  for (let year = thisYear + 1; year >= 2020; year -= 1) addOption(elements.kbYear, String(year), String(year));
 }
 
 function resetKeyBuilder() {
   if (!elements.keyBuilderForm) return;
+  keyBuilderConfirmed = [false, false, false, false, false];
   const now = new Date();
   elements.kbDay.value = String(now.getDate()).padStart(2, '0');
   elements.kbMonth.value = String(now.getMonth() + 1).padStart(2, '0');
@@ -2681,8 +2745,12 @@ if (elements.keyBuilderForm && !IS_MOBILE_DEVICE) {
   elements.modeScanButton.addEventListener('click', () => setIntakeMode('scan'));
   elements.modeBuildButton.addEventListener('click', () => setIntakeMode('build'));
 
-  [elements.kbDay, elements.kbMonth, elements.kbYear, elements.kbEstab,
-    elements.kbPtoEmi, elements.kbSecuencial, elements.kbCodigo].forEach((input) => {
+  populateKeyBuilderDate();
+
+  [elements.kbDay, elements.kbMonth, elements.kbYear].forEach((select) => {
+    select.addEventListener('change', renderKeyBuilder);
+  });
+  [elements.kbEstab, elements.kbPtoEmi, elements.kbSecuencial, elements.kbCodigo].forEach((input) => {
     input.addEventListener('input', () => {
       input.value = onlyDigits(input.value, Number(input.getAttribute('maxlength')) || 9);
       renderKeyBuilder();
@@ -2698,6 +2766,10 @@ if (elements.keyBuilderForm && !IS_MOBILE_DEVICE) {
   elements.kbProvider.addEventListener('change', renderKeyBuilder);
   elements.kbCheckConfirm.addEventListener('change', renderKeyBuilder);
   elements.kbProviderXmlButton.addEventListener('click', () => elements.xmlFileInput.click());
+  elements.kbInsertDate.addEventListener('click', () => toggleKeyBuilderStep(0));
+  elements.kbInsertProvider.addEventListener('click', () => toggleKeyBuilderStep(1));
+  elements.kbInsertNumber.addEventListener('click', () => toggleKeyBuilderStep(2));
+  elements.kbInsertCode.addEventListener('click', () => toggleKeyBuilderStep(3));
 
   elements.keyBuilderForm.addEventListener('submit', async (event) => {
     event.preventDefault();

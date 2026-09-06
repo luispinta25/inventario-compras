@@ -189,9 +189,14 @@
                 <div class="key-builder-step-head"><span class="key-builder-step-num">1</span><h3>Fecha de emisión</h3></div>
                 <p class="key-builder-hint">Toma la fecha de la factura. Por defecto es la de hoy.</p>
                 <div class="key-builder-date">
-                  <label>Día<input id="kbDay" inputmode="numeric" maxlength="2" autocomplete="off"></label>
-                  <label>Mes<input id="kbMonth" inputmode="numeric" maxlength="2" autocomplete="off"></label>
-                  <label>Año<input id="kbYear" inputmode="numeric" maxlength="4" autocomplete="off"></label>
+                  <label>Día<select id="kbDay" class="key-builder-select"></select></label>
+                  <label>Mes<select id="kbMonth" class="key-builder-select"></select></label>
+                  <label>Año<select id="kbYear" class="key-builder-select"></select></label>
+                </div>
+                <div class="key-builder-actions">
+                  <button type="button" class="button button-secondary key-builder-insert" id="kbInsertDate">
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i> Insertar fecha
+                  </button>
                 </div>
               </li>
 
@@ -206,6 +211,11 @@
                   <button type="button" class="link-button" id="kbProviderXmlButton">Carga el XML de la factura</button>
                   o súbela desde el móvil para vincularlo sin errores.
                 </p>
+                <div class="key-builder-actions">
+                  <button type="button" class="button button-secondary key-builder-insert" id="kbInsertProvider" disabled>
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i> Insertar proveedor
+                  </button>
+                </div>
               </li>
 
               <li class="key-builder-step" data-kb-step="3" hidden>
@@ -219,12 +229,22 @@
                   <label>Secuencial<input id="kbSecuencial" inputmode="numeric" maxlength="9" autocomplete="off" placeholder="000123401"></label>
                 </div>
                 <p class="key-builder-resolved" id="kbInvoiceResolved" hidden></p>
+                <div class="key-builder-actions">
+                  <button type="button" class="button button-secondary key-builder-insert" id="kbInsertNumber" disabled>
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i> Insertar número
+                  </button>
+                </div>
               </li>
 
               <li class="key-builder-step" data-kb-step="4" hidden>
                 <div class="key-builder-step-head"><span class="key-builder-step-num">4</span><h3>Código numérico</h3></div>
                 <p class="key-builder-hint">Los 8 dígitos que no se pueden calcular. En la clave impresa son las posiciones 37 a 44.</p>
                 <input id="kbCodigo" class="key-builder-code" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="8 dígitos">
+                <div class="key-builder-actions">
+                  <button type="button" class="button button-secondary key-builder-insert" id="kbInsertCode" disabled>
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i> Insertar código
+                  </button>
+                </div>
               </li>
 
               <li class="key-builder-step" data-kb-step="5" hidden>
@@ -239,7 +259,10 @@
             </ol>
 
             <div class="key-builder-preview" aria-live="polite">
-              <span class="key-builder-preview-label">Clave de acceso</span>
+              <div class="key-builder-preview-head">
+                <span class="key-builder-preview-label">Clave de acceso</span>
+                <span class="key-builder-preview-count" id="kbPreviewCount">0 de 49</span>
+              </div>
               <div class="key-builder-preview-key" id="kbPreview"></div>
             </div>
 
