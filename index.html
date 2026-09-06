@@ -459,7 +459,7 @@
             <input id="ocrKeyFileGallery" type="file" accept="image/*" hidden>
 
             <div class="ocr-crop" id="ocrCrop" hidden>
-              <p class="ocr-crop-hint">Arrastra las <strong>4 esquinas</strong> para encuadrar la línea <strong>completa</strong> de la <strong>CLAVE DE ACCESO</strong> (o de <strong>AUTORIZACIÓN</strong>). Corrige la inclinación si la foto se tomó de lado. Toca Leer.</p>
+              <p class="ocr-crop-hint">Arrastra las <strong>2 líneas rojas</strong> para dejar la <strong>CLAVE DE ACCESO</strong> completa entre ellas (o la de <strong>AUTORIZACIÓN</strong>). Usa <strong>Rotar</strong> si la foto quedó de lado. Toca Leer.</p>
               <div class="ocr-crop-toolbar">
                 <button type="button" class="button button-secondary" id="ocrRotateButton">
                   <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
@@ -468,13 +468,10 @@
               </div>
               <div class="ocr-crop-stage" id="ocrCropStage">
                 <img id="ocrCropImage" alt="Foto de la factura">
-                <svg class="ocr-quad-outline" id="ocrQuadOutline" aria-hidden="true" preserveAspectRatio="none" viewBox="0 0 100 100">
-                  <polygon points="" />
-                </svg>
-                <span class="ocr-corner" data-corner="0" role="slider" aria-label="Esquina superior izquierda" tabindex="0"></span>
-                <span class="ocr-corner" data-corner="1" role="slider" aria-label="Esquina superior derecha" tabindex="0"></span>
-                <span class="ocr-corner" data-corner="2" role="slider" aria-label="Esquina inferior derecha" tabindex="0"></span>
-                <span class="ocr-corner" data-corner="3" role="slider" aria-label="Esquina inferior izquierda" tabindex="0"></span>
+                <div class="ocr-shade" id="ocrShadeTop"></div>
+                <div class="ocr-shade" id="ocrShadeBottom"></div>
+                <div class="ocr-hbar" id="ocrBarTop" data-side="top" role="slider" aria-label="Borde superior de la clave" tabindex="0"></div>
+                <div class="ocr-hbar" id="ocrBarBottom" data-side="bottom" role="slider" aria-label="Borde inferior de la clave" tabindex="0"></div>
                 <div class="ocr-loupe" id="ocrLoupe" aria-hidden="true" hidden>
                   <canvas id="ocrLoupeCanvas" width="150" height="150"></canvas>
                   <span class="ocr-loupe-cross" aria-hidden="true"></span>

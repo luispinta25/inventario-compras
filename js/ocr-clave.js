@@ -76,99 +76,6 @@
     }
   }
 
-  // ---- Corrección de perspectiva (4 puntos) ---------------------------------
-
-  function solve8(matrix, vector) {
-    const n = 8;
-    for (let col = 0; col < n; col += 1) {
-      let pivot = col;
-      for (let row = col + 1; row < n; row += 1) {
-        if (Math.abs(matrix[row][col]) > Math.abs(matrix[pivot][col])) pivot = row;
-      }
-      [matrix[col], matrix[pivot]] = [matrix[pivot], matrix[col]];
-      [vector[col], vector[pivot]] = [vector[pivot], vector[col]];
-      const diag = matrix[col][col] || 1e-9;
-      for (let row = 0; row < n; row += 1) {
-        if (row === col) continue;
-        const factor = matrix[row][col] / diag;
-        for (let c = col; c < n; c += 1) matrix[row][c] -= factor * matrix[col][c];
-        vector[row] -= factor * vector[col];
-      }
-    }
-    return vector.map((value, index) => value / (matrix[index][index] || 1e-9));
-  }
-
-  // Coeficientes [a,b,c,d,e,f,g,h] que llevan (x,y) de `from` a `to`:
-  //   x' = (a x + b y + c) / (g x + h y + 1)
-  //   y' = (d x + e y + f) / (g x + h y + 1)
-  function perspectiveCoeffs(from, to) {
-    const matrix = [];
-    const vector = [];
-    for (let i = 0; i < 4; i += 1) {
-      const { x, y } = from[i];
-      const { x: X, y: Y } = to[i];
-      matrix.push([x, y, 1, 0, 0, 0, -X * x, -X * y]); vector.push(X);
-      matrix.push([0, 0, 0, x, y, 1, -Y * x, -Y * y]); vector.push(Y);
-    }
-    return solve8(matrix, vector);
-  }
-
-  // quad: 4 puntos en píxeles del `source`, en orden TL, TR, BR, BL.
-  // Devuelve un canvas rectangular con esa región enderezada (homografía +
-  // muestreo bilineal). Sirve para fotos tomadas de lado o con inclinación.
-  function warpQuad(source, quad) {
-    const sw = source.naturalWidth || source.videoWidth || source.width;
-    const sh = source.naturalHeight || source.videoHeight || source.height;
-    if (!sw || !sh || !Array.isArray(quad) || quad.length !== 4) throw new Error('Región inválida.');
-    const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
-    let outW = Math.round((dist(quad[0], quad[1]) + dist(quad[3], quad[2])) / 2);
-    let outH = Math.round((dist(quad[0], quad[3]) + dist(quad[1], quad[2])) / 2);
-    outW = Math.max(200, Math.min(2600, outW));
-    outH = Math.max(40, Math.min(520, outH));
-    const dst = [{ x: 0, y: 0 }, { x: outW, y: 0 }, { x: outW, y: outH }, { x: 0, y: outH }];
-    const [a, b, c, d, e, f, g, h] = perspectiveCoeffs(dst, quad); // salida -> fuente
-
-    const work = document.createElement('canvas');
-    work.width = sw;
-    work.height = sh;
-    const wctx = work.getContext('2d', { willReadFrequently: true });
-    wctx.drawImage(source, 0, 0, sw, sh);
-    const src = wctx.getImageData(0, 0, sw, sh).data;
-
-    const out = document.createElement('canvas');
-    out.width = outW;
-    out.height = outH;
-    const octx = out.getContext('2d');
-    const outImage = octx.createImageData(outW, outH);
-    const od = outImage.data;
-    for (let y = 0; y < outH; y += 1) {
-      for (let x = 0; x < outW; x += 1) {
-        const denom = g * x + h * y + 1;
-        const sx = (a * x + b * y + c) / denom;
-        const sy = (d * x + e * y + f) / denom;
-        const oi = (y * outW + x) * 4;
-        od[oi + 3] = 255;
-        if (sx < 0 || sy < 0 || sx >= sw - 1 || sy >= sh - 1) {
-          od[oi] = od[oi + 1] = od[oi + 2] = 255;
-          continue;
-        }
-        const x0 = sx | 0;
-        const y0 = sy | 0;
-        const fx = sx - x0;
-        const fy = sy - y0;
-        const base = (y0 * sw + x0) * 4;
-        for (let ch = 0; ch < 3; ch += 1) {
-          const p00 = src[base + ch];
-          const p10 = src[base + 4 + ch];
-          const p01 = src[base + sw * 4 + ch];
-          const p11 = src[base + sw * 4 + 4 + ch];
-          od[oi + ch] = p00 * (1 - fx) * (1 - fy) + p10 * fx * (1 - fy) + p01 * (1 - fx) * fy + p11 * fx * fy;
-        }
-      }
-    }
-    octx.putImageData(outImage, 0, 0);
-    return out;
-  }
 
   // ---- Preprocesado -------------------------------------------------------
 
@@ -509,10 +416,13 @@
     }
     if (!best) return null;
     const height = scaled.height;
+    const width = scaled.width;
     const pad = Math.max(6, (best.bbox.y1 - best.bbox.y0) * 0.3);
     return {
       top: Math.max(0, (best.bbox.y0 - pad) / height),
-      height: Math.min(1, (best.bbox.y1 - best.bbox.y0 + pad * 2) / height)
+      height: Math.min(1, (best.bbox.y1 - best.bbox.y0 + pad * 2) / height),
+      left: Math.max(0, best.bbox.x0 / width),
+      right: Math.min(1, best.bbox.x1 / width)
     };
   }
 
@@ -576,5 +486,5 @@
     try { await getWorker('eng'); } catch (_) { /* se reintenta al usar */ }
   }
 
-  window.ocrClave = { run, warmup, locateClaveLine, warpQuad };
+  window.ocrClave = { run, warmup, locateClaveLine };
 })();
