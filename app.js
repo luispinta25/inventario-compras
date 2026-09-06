@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260905.11';
+const APP_BUILD = '20260905.12';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -39,7 +39,7 @@ const elements = Object.fromEntries([
   'mobileLinkProviderButton', 'mobileScanAnotherButton',
   'ocrPickCamera', 'ocrPickGallery', 'ocrKeyFileCamera',
   'ocrKeyFileGallery', 'ocrCrop', 'ocrCropStage', 'ocrCropImage', 'ocrQuadOutline',
-  'ocrCropCancel', 'ocrCropRun', 'ocrRotateButton',
+  'ocrLoupe', 'ocrLoupeCanvas', 'ocrCropCancel', 'ocrCropRun', 'ocrRotateButton',
   'appDialog', 'appDialogText', 'appDialogCancel', 'appDialogConfirm'
 ].map((id) => [id, document.getElementById(id)]));
 
@@ -1297,8 +1297,30 @@ function renderOcrQuad() {
   polygon.setAttribute('points', ocrQuad.map((p) => `${(p.x * 100).toFixed(2)},${(p.y * 100).toFixed(2)}`).join(' '));
 }
 
+// Lupa: mientras se arrastra una esquina, muestra ampliada la zona bajo el
+// dedo con una cruz en el punto exacto, pegada arriba (o abajo si el punto
+// está arriba) para que el dedo no la tape.
+const OCR_LOUPE_SIZE = 150;
+const OCR_LOUPE_ZOOM = 3.4;
+function renderOcrLoupe(point) {
+  if (!ocrSource) return;
+  const windowPx = OCR_LOUPE_SIZE / OCR_LOUPE_ZOOM;
+  const cx = point.x * ocrSource.width;
+  const cy = point.y * ocrSource.height;
+  const context = elements.ocrLoupeCanvas.getContext('2d');
+  context.imageSmoothingEnabled = false;
+  context.fillStyle = '#101216';
+  context.fillRect(0, 0, OCR_LOUPE_SIZE, OCR_LOUPE_SIZE);
+  context.drawImage(ocrSource, cx - windowPx / 2, cy - windowPx / 2, windowPx, windowPx, 0, 0, OCR_LOUPE_SIZE, OCR_LOUPE_SIZE);
+  elements.ocrLoupe.classList.toggle('at-bottom', point.y < 0.42);
+  elements.ocrLoupe.hidden = false;
+}
+function hideOcrLoupe() { elements.ocrLoupe.hidden = true; }
+
 function closeOcrCrop() {
   elements.ocrCrop.hidden = true;
+  hideOcrLoupe();
+  ocrQuadDrag = null;
   const previous = elements.ocrCropImage.getAttribute('src');
   if (previous && previous.startsWith('blob:')) URL.revokeObjectURL(previous);
   elements.ocrCropImage.removeAttribute('src');
@@ -1431,6 +1453,7 @@ function beginOcrQuadDrag(event) {
   ocrQuadUserMoved = true;
   ocrQuadDrag = { index };
   elements.ocrCropStage.setPointerCapture?.(event.pointerId);
+  renderOcrLoupe(ocrQuad[index]);
   event.preventDefault();
 }
 
@@ -1438,9 +1461,10 @@ function moveOcrQuadDrag(event) {
   if (!ocrQuadDrag) return;
   ocrQuad[ocrQuadDrag.index] = pointFromEvent(event);
   renderOcrQuad();
+  renderOcrLoupe(ocrQuad[ocrQuadDrag.index]);
 }
 
-function endOcrQuadDrag() { ocrQuadDrag = null; }
+function endOcrQuadDrag() { ocrQuadDrag = null; hideOcrLoupe(); }
 
 async function runOcrRead() {
   if (!ocrSource || ocrBusy) return;
