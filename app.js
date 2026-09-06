@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260906.7';
+const APP_BUILD = '20260906.8';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -665,7 +665,7 @@ function loadComparatorModule() {
   if (comparatorModuleRequest) return comparatorModuleRequest;
   comparatorModuleRequest = new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = 'js/comparador.js';
+    script.src = `js/comparador.js?v=${APP_BUILD}`;
     script.dataset.module = 'comparator';
     script.onload = () => resolve();
     script.onerror = () => {
@@ -685,7 +685,7 @@ function loadInvoicesModule() {
   if (invoicesModuleRequest) return invoicesModuleRequest;
   invoicesModuleRequest = new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = 'js/facturas.js';
+    script.src = `js/facturas.js?v=${APP_BUILD}`;
     script.dataset.module = 'facturas';
     script.onload = () => resolve();
     script.onerror = () => {
@@ -1307,7 +1307,7 @@ function loadOcrModule() {
   if (ocrModuleRequest) return ocrModuleRequest;
   ocrModuleRequest = new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = 'js/ocr-clave.js';
+    script.src = `js/ocr-clave.js?v=${APP_BUILD}`;
     script.onload = () => resolve();
     script.onerror = () => { ocrModuleRequest = null; script.remove(); reject(new Error('No se pudo cargar el lector de clave.')); };
     document.body.appendChild(script);
