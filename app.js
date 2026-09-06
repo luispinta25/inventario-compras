@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260906.4';
+const APP_BUILD = '20260906.5';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -417,6 +417,8 @@ window.app = {
   currentUser: null,
   formatCurrency,
   posApiRequest,
+  askConfirm,
+  askAlert,
   inventoryCatalog: {
     preload: preloadInternalProductCatalog,
     get: () => internalProductCatalog,
@@ -475,6 +477,7 @@ function moduleFromHash() {
   if (IS_MOBILE_DEVICE) return 'mobile-capture';
   return {
     '#ingreso-facturas': 'invoice-import',
+    '#facturas': 'provider-invoices',
     '#comparador': 'comparator',
     '#producto-proveedores': 'product-providers',
     '#pendientes': 'pending-documents',
@@ -675,6 +678,26 @@ function loadComparatorModule() {
   return comparatorModuleRequest;
 }
 
+let invoicesModuleRequest = null;
+
+function loadInvoicesModule() {
+  if (typeof window.initFacturas === 'function') return Promise.resolve();
+  if (invoicesModuleRequest) return invoicesModuleRequest;
+  invoicesModuleRequest = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'js/facturas.js';
+    script.dataset.module = 'facturas';
+    script.onload = () => resolve();
+    script.onerror = () => {
+      invoicesModuleRequest = null;
+      script.remove();
+      reject(new Error('No se pudo cargar la gestión de facturas.'));
+    };
+    document.body.appendChild(script);
+  });
+  return invoicesModuleRequest;
+}
+
 async function switchAppModule(moduleName) {
   if (IS_MOBILE_DEVICE && moduleName !== 'mobile-capture') {
     moduleName = 'mobile-capture';
@@ -682,7 +705,6 @@ async function switchAppModule(moduleName) {
   }
   const providerModes = {
     'provider-dashboard': 'dashboard',
-    'provider-invoices': 'facturas',
     'provider-entry': 'productos'
   };
   const providerMode = providerModes[moduleName];
@@ -709,6 +731,9 @@ async function switchAppModule(moduleName) {
   } else if (moduleName === 'comparator') {
     await loadComparatorModule();
     await window.initComparador();
+  } else if (moduleName === 'provider-invoices') {
+    await loadInvoicesModule();
+    await window.initFacturas();
   } else if (moduleName === 'pending-documents') {
     await loadPendingDocuments();
   } else if (moduleName === 'mobile-capture') {

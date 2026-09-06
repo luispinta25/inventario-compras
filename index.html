@@ -85,7 +85,7 @@
           <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
           <span>Dashboard</span>
         </a>
-        <a href="#facturas" class="module-nav-item" data-app-module="provider-invoices" title="Facturas registradas" hidden>
+        <a href="#facturas" class="module-nav-item" data-app-module="provider-invoices" title="Gestión de facturas">
           <i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i>
           <span>Facturas</span>
         </a>
@@ -519,6 +519,150 @@
           </section>
         </main>
       </section>
+
+      <section class="module-panel invoices-panel" data-module-panel="provider-invoices" hidden aria-labelledby="invoicesTitle">
+        <header class="app-header">
+          <div>
+            <p class="product-name">CUENTAS POR PAGAR</p>
+            <h1 id="invoicesTitle">Gestión de facturas</h1>
+          </div>
+          <div class="invoices-totals" id="invoicesTotals">
+            <div><span>Total facturas</span><strong id="invTotalFacturas">$0.00</strong></div>
+            <div><span>Pendiente</span><strong id="invTotalPendiente" class="is-info">$0.00</strong></div>
+            <div><span>Vencido</span><strong id="invTotalVencido" class="is-danger">$0.00</strong></div>
+          </div>
+        </header>
+
+        <main class="invoices-workspace">
+          <section class="invoices-toolbar" aria-label="Filtros de facturas">
+            <label class="invoices-field">
+              <span>Proveedor</span>
+              <select id="invProveedorFilter" class="form-select">
+                <option value="todos">Todos los proveedores</option>
+              </select>
+            </label>
+            <label class="invoices-field">
+              <span>Estado</span>
+              <select id="invEstadoFilter" class="form-select">
+                <option value="pendientes">Pendientes / Abonadas</option>
+                <option value="pagadas">Pagadas</option>
+                <option value="todas">Todas</option>
+                <option value="archivadas">Archivadas</option>
+              </select>
+            </label>
+            <button type="button" class="button button-secondary" id="invRefreshButton">
+              <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+              Recargar
+            </button>
+          </section>
+
+          <p class="invoices-summary" id="invoicesSummary" aria-live="polite">Cargando facturas…</p>
+          <div class="invoices-grid" id="invoicesGrid" aria-live="polite"></div>
+        </main>
+      </section>
+
+      <div class="invoice-modal" id="invoiceModal" hidden>
+        <div class="invoice-modal-overlay" id="invoiceModalOverlay"></div>
+        <section class="invoice-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="invModalTitle">
+          <header>
+            <div>
+              <p class="section-kicker">Factura de proveedor</p>
+              <h2 id="invModalTitle">Factura</h2>
+            </div>
+            <button type="button" class="icon-button" id="invModalClose" title="Cerrar" aria-label="Cerrar">
+              <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+          </header>
+
+          <div class="invoice-modal-tabs" role="tablist" aria-label="Secciones de la factura">
+            <button type="button" class="invoice-tab is-active" data-inv-tab="detalles" role="tab" aria-selected="true">Detalles</button>
+            <button type="button" class="invoice-tab" data-inv-tab="historial" role="tab" aria-selected="false">Historial</button>
+            <button type="button" class="invoice-tab" data-inv-tab="productos" role="tab" aria-selected="false">Productos</button>
+            <button type="button" class="invoice-tab" data-inv-tab="pago" role="tab" aria-selected="false">Registrar pago</button>
+          </div>
+
+          <div class="invoice-modal-body">
+            <div class="invoice-tab-panel is-active" data-inv-panel="detalles">
+              <dl class="invoice-detail-grid">
+                <div><dt>Número</dt><dd id="invDetNumero">-</dd></div>
+                <div><dt>Proveedor</dt><dd id="invDetProveedor">-</dd></div>
+                <div><dt>Emisión</dt><dd id="invDetEmision">-</dd></div>
+                <div><dt>Vencimiento</dt><dd id="invDetVencimiento">-</dd></div>
+                <div><dt>Subtotal</dt><dd id="invDetSubtotal">-</dd></div>
+                <div><dt>IVA</dt><dd id="invDetIva">-</dd></div>
+                <div><dt>Descuento</dt><dd id="invDetDescuento">-</dd></div>
+                <div><dt>Total</dt><dd id="invDetTotal">-</dd></div>
+                <div><dt>Saldo pendiente</dt><dd id="invDetSaldo">-</dd></div>
+                <div><dt>Estado</dt><dd><span class="invoice-badge" id="invDetEstado">-</span></dd></div>
+                <div><dt>Situación</dt><dd id="invDetDias">-</dd></div>
+              </dl>
+              <div class="invoice-detail-notas">
+                <dt>Notas</dt>
+                <p id="invDetNotas">Sin notas</p>
+              </div>
+            </div>
+
+            <div class="invoice-tab-panel" data-inv-panel="historial">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Fecha</th><th class="number">Monto</th><th>Método</th><th>Referencia</th><th class="number">Saldo resultante</th></tr>
+                  </thead>
+                  <tbody id="invHistorialBody"></tbody>
+                </table>
+              </div>
+              <p class="invoice-empty" id="invHistorialEmpty" hidden>Todavía no hay pagos registrados.</p>
+            </div>
+
+            <div class="invoice-tab-panel" data-inv-panel="productos">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Código</th><th>Producto</th><th class="number">Cantidad</th><th class="number">Precio +IVA</th><th class="number">Subtotal +IVA</th><th>Zona</th></tr>
+                  </thead>
+                  <tbody id="invProductosBody"></tbody>
+                </table>
+              </div>
+              <p class="invoice-empty" id="invProductosEmpty" hidden>Esta factura no tiene productos registrados.</p>
+            </div>
+
+            <div class="invoice-tab-panel" data-inv-panel="pago">
+              <form id="invPagoForm" class="invoice-pago-form" novalidate>
+                <p class="invoice-pago-saldo">Saldo pendiente: <strong id="invPagoSaldo">$0.00</strong></p>
+                <label>Referencia / recibo
+                  <input type="text" id="invPagoReferencia" maxlength="120" autocomplete="off" required>
+                </label>
+                <label>Método de pago
+                  <select id="invPagoMetodo" required>
+                    <option value="EFECTIVO">Efectivo</option>
+                    <option value="TRANSFERENCIA">Transferencia</option>
+                  </select>
+                </label>
+                <label>Tipo de pago
+                  <select id="invPagoTipo" required>
+                    <option value="Abono">Abono</option>
+                    <option value="Total">Total</option>
+                  </select>
+                </label>
+                <label>Monto
+                  <input type="number" id="invPagoMonto" step="0.01" min="0.01" inputmode="decimal" required>
+                </label>
+                <label class="invoice-pago-full">Notas
+                  <textarea id="invPagoNotas" rows="2" maxlength="500"></textarea>
+                </label>
+                <p class="invoice-pago-error" id="invPagoError" hidden></p>
+                <div class="invoice-pago-actions">
+                  <button type="button" class="button button-secondary" id="invPagoCancel">Cancelar</button>
+                  <button type="submit" class="button button-primary" id="invPagoSubmit">
+                    <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+                    Registrar pago
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+      </div>
 
       <section class="module-panel pending-documents-panel" data-module-panel="pending-documents" hidden aria-labelledby="pendingDocumentsTitle">
         <header class="app-header">
