@@ -55,6 +55,11 @@
         load_freq_dawg: '0',
         user_defined_dpi: '300'
       });
+      // Se le dice a Tesseract que espere una cadena de 49 dígitos.
+      try {
+        await worker.writeText('clave49.patterns', `${'\\d'.repeat(49)}\n`);
+        await worker.setParameters({ user_patterns_file: 'clave49.patterns' });
+      } catch (_) { /* opcional: si el runtime no lo admite se ignora */ }
       return worker;
     })().catch((error) => {
       workers.delete(lang);
@@ -318,7 +323,36 @@
     return data.text || '';
   }
 
+  // Lee un renglón y devuelve los dígitos en orden con la confianza de cada uno,
+  // para poder votar por posición entre varias lecturas.
+  async function readClave(worker, canvas, pageSegMode) {
+    await worker.setParameters({ tessedit_pageseg_mode: pageSegMode });
+    const { data } = await worker.recognize(canvas, {}, { blocks: true });
+    const digits = [];
+    const weights = [];
+    const walk = (node) => {
+      if (!node) return;
+      if (Array.isArray(node.symbols) && node.symbols.length) {
+        for (const sym of node.symbols) {
+          const ch = String(sym.text || '').replace(/\D/g, '');
+          if (ch.length === 1) { digits.push(ch); weights.push(Number(sym.confidence) || 0); }
+        }
+        return;
+      }
+      for (const key of ['blocks', 'paragraphs', 'lines', 'words']) {
+        if (Array.isArray(node[key])) node[key].forEach(walk);
+      }
+    };
+    (data.blocks || []).forEach(walk);
+    if (!digits.length) {
+      const fallback = String(data.text || '').replace(/\D/g, '');
+      return { text: data.text || '', digits: fallback, weights: null };
+    }
+    return { text: data.text || '', digits: digits.join(''), weights };
+  }
+
   function hintsFromText(text) {
+    if (window.app?.accessKey?.hintsFromText) return window.app.accessKey.hintsFromText(text);
     const hints = {};
     const factura = String(text || '').match(/(\d{3})\s*-\s*(\d{3})\s*-\s*(\d{6,9})/);
     if (factura) {
@@ -330,19 +364,62 @@
     return hints;
   }
 
-  async function tryEnsemble(worker, variants, fullText, onText) {
-    const hints = hintsFromText(fullText);
-    let best = null;
+  // Recorre variantes de binarizado y modos de segmentación. Acumula cada
+  // lectura (con confianza por dígito) en `reads` y devuelve pronto si una
+  // lectura suelta ya valida.
+  async function runEnsemble(worker, variants, psmList, hints, reads) {
     for (const variant of variants) {
-      for (const psm of ['7', '13', '6']) {
-        const text = await readText(worker, variant.canvas, psm);
-        onText(text);
-        const single = window.app.accessKey.resolveFromText(text, hints);
+      for (const psm of psmList) {
+        const read = await readClave(worker, variant.canvas, psm);
+        reads.push({ digits: read.digits, weights: read.weights });
+        const single = window.app.accessKey.resolveFromText(read.text || read.digits, hints);
         if (single && single.confidence === 'alta') return single;
-        if (single && !best) best = single;
       }
     }
-    return best;
+    return null;
+  }
+
+  // Ubica el renglón de la clave en la foto completa para colocar el recuadro
+  // automáticamente. Devuelve { top, height } como fracción de la altura, o null.
+  async function locateClaveLine(source) {
+    let worker;
+    try { worker = await getWorker('eng'); } catch (_) { return null; }
+    let scaled;
+    try { scaled = cropAndScale(source, null); } catch (_) { return null; }
+    const gray = toGrayArray(scaled);
+    const canvas = binToCanvas(stretch(gray, scaled.width, scaled.height), scaled.width, scaled.height, 0);
+    let data;
+    try {
+      await worker.setParameters({ tessedit_char_whitelist: '', tessedit_pageseg_mode: '6', user_patterns_file: '' });
+      ({ data } = await worker.recognize(canvas, {}, { blocks: true }));
+    } catch (_) {
+      return null;
+    } finally {
+      try {
+        await worker.setParameters({ tessedit_char_whitelist: '0123456789', user_patterns_file: 'clave49.patterns' });
+      } catch (_) { /* se restaura al usar */ }
+    }
+    const lines = [];
+    for (const block of data.blocks || []) {
+      for (const paragraph of block.paragraphs || []) {
+        for (const line of paragraph.lines || []) lines.push({ text: line.text || '', bbox: line.bbox });
+      }
+    }
+    let best = null;
+    for (const line of lines) {
+      if (!line.bbox) continue;
+      const digitCount = line.text.replace(/\D/g, '').length;
+      const labelled = /clave|acceso|autoriz/i.test(line.text);
+      const score = (labelled ? 400 : 0) + (digitCount >= 40 ? digitCount + 120 : digitCount);
+      if (score >= 60 && (!best || score > best.score)) best = { score, bbox: line.bbox };
+    }
+    if (!best) return null;
+    const height = scaled.height;
+    const pad = Math.max(6, (best.bbox.y1 - best.bbox.y0) * 0.3);
+    return {
+      top: Math.max(0, (best.bbox.y0 - pad) / height),
+      height: Math.min(1, (best.bbox.y1 - best.bbox.y0 + pad * 2) / height)
+    };
   }
 
   // source: HTMLImageElement | ImageBitmap | HTMLCanvasElement | HTMLVideoElement
@@ -359,35 +436,40 @@
     const fullGray = toGrayArray(fullScaled);
     const fullCanvas = binToCanvas(stretch(fullGray, fullScaled.width, fullScaled.height), fullScaled.width, fullScaled.height, 0);
 
-    const collected = [];
-    const record = (text) => { if (text && text.replace(/\D/g, '').length >= 20) collected.push(text); };
-
+    const reads = [];
     let usedBest = false;
     try {
       onProgress('Analizando la foto…');
       const fastWorker = await getWorker('eng');
-      const fullText = await readText(fastWorker, fullCanvas, '6');
-      const hit = await tryEnsemble(fastWorker, variants, fullText, record);
-      if (hit && hit.confidence === 'alta') return hit;
+      const fullText = `${await readText(fastWorker, fullCanvas, '6')}`;
+      const hints = hintsFromText(fullText);
+
+      const fastHit = await runEnsemble(fastWorker, variants, ['7', '13', '6'], hints, reads);
+      if (fastHit && fastHit.confidence === 'alta') return fastHit;
+
+      const votedFast = window.app.accessKey.voteFromReads(reads, hints);
+      if (votedFast && votedFast.confidence === 'alta') return votedFast;
 
       onProgress('Afinando la lectura…');
       usedBest = true;
       const bestWorker = await getWorker('engbest');
-      const bestFull = await readText(bestWorker, fullCanvas, '6');
-      const combinedFull = `${fullText}\n${bestFull}`;
-      const deeper = await tryEnsemble(bestWorker, variants, combinedFull, record);
-      if (deeper && deeper.confidence === 'alta') return deeper;
+      const bestFull = `${await readText(bestWorker, fullCanvas, '6')}`;
+      const allHints = hintsFromText(`${fullText}\n${bestFull}`);
+      const deepHit = await runEnsemble(bestWorker, variants.slice(0, 2), ['7', '13'], allHints, reads);
+      if (deepHit && deepHit.confidence === 'alta') return deepHit;
+
+      const voted = window.app.accessKey.voteFromReads(reads, allHints);
+      if (voted && voted.confidence === 'alta') return voted;
 
       const merged = window.app.accessKey.resolveFromText(
-        `${collected.join('\n')}\n${combinedFull}`,
-        hintsFromText(combinedFull)
+        `${reads.map((r) => r.digits).join('\n')}\n${fullText}\n${bestFull}`,
+        allHints
       );
-      return merged || deeper || hit || null;
+      return merged || voted || votedFast || deepHit || fastHit || null;
     } catch (error) {
       await terminateWorkers();
       throw new Error('No se pudo leer la foto. Inténtalo de nuevo con más luz o escríbela.');
     } finally {
-      // El modelo grande solo se mantiene mientras se usa; libera memoria del móvil.
       if (usedBest) {
         const promise = workers.get('engbest');
         workers.delete('engbest');
@@ -400,5 +482,5 @@
     try { await getWorker('eng'); } catch (_) { /* se reintenta al usar */ }
   }
 
-  window.ocrClave = { run, warmup };
+  window.ocrClave = { run, warmup, locateClaveLine };
 })();

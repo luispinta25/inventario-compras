@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260905.9';
+const APP_BUILD = '20260905.10';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -420,6 +420,8 @@ window.app = {
   },
   accessKey: {
     resolveFromText: resolveAccessKeyFromText,
+    voteFromReads: voteAccessKey,
+    hintsFromText: accessKeyHintsFromText,
     isValid: isValidAccessKey
   }
 };
@@ -1266,6 +1268,7 @@ let ocrSource = null;          // canvas rotado que se pasa al OCR
 let ocrRotation = 0;           // 0 / 90 / 180 / 270
 let ocrBand = { top: 0.42, height: 0.16 };
 let ocrBandDrag = null;
+let ocrBandUserMoved = false;
 let ocrBusy = false;
 
 function loadOcrModule() {
@@ -1320,7 +1323,29 @@ function applyOcrRotation() {
   }
   elements.ocrCropImage.src = ocrSource.toDataURL('image/jpeg', 0.85);
   ocrBand = { top: 0.42, height: 0.16 };
+  ocrBandUserMoved = false;
   renderOcrBand();
+}
+
+// Ubica sola la línea de la clave y coloca el recuadro ahí, salvo que el
+// usuario ya lo haya movido.
+let ocrAutoLocateToken = 0;
+function autoLocateClaveBand() {
+  if (!ocrSource) return;
+  const token = ++ocrAutoLocateToken;
+  const target = ocrSource;
+  loadOcrModule()
+    .then(() => window.ocrClave?.locateClaveLine?.(target))
+    .then((band) => {
+      if (!band || token !== ocrAutoLocateToken || ocrBandUserMoved || ocrSource !== target || elements.ocrCrop.hidden) return;
+      ocrBand = {
+        top: Math.max(0, Math.min(0.94, band.top)),
+        height: Math.max(0.05, Math.min(1 - Math.max(0, band.top), band.height))
+      };
+      renderOcrBand();
+      setMobileStatus('Recuadro colocado sobre la clave. Ajústalo si hace falta y toca Leer.');
+    })
+    .catch(() => { /* si falla, queda el recuadro por defecto */ });
 }
 
 function loadImageElement(url) {
@@ -1367,11 +1392,13 @@ async function openOcrCropFromFile(file) {
   applyOcrRotation();
   elements.ocrCrop.hidden = false;
   elements.ocrCrop.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  setMobileStatus('Ajusta el recuadro sobre la clave y toca Leer.');
+  setMobileStatus('Buscando la línea de la clave…');
+  autoLocateClaveBand();
   loadOcrModule().then(() => window.ocrClave?.warmup?.()).catch(() => {});
 }
 
 function beginOcrBandDrag(event) {
+  ocrBandUserMoved = true;
   const edge = event.target?.dataset?.edge || 'move';
   ocrBandDrag = {
     edge,
@@ -1465,7 +1492,7 @@ function handleOcrFileChange(event) {
 elements.ocrKeyFileCamera.addEventListener('change', handleOcrFileChange);
 elements.ocrKeyFileGallery.addEventListener('change', handleOcrFileChange);
 elements.ocrCropCancel.addEventListener('click', () => { if (!ocrBusy) { closeOcrCrop(); setMobileStatus(''); } });
-elements.ocrRotateButton.addEventListener('click', () => { if (!ocrBusy && ocrSourceRaw) { ocrRotation += 90; applyOcrRotation(); } });
+elements.ocrRotateButton.addEventListener('click', () => { if (!ocrBusy && ocrSourceRaw) { ocrRotation += 90; applyOcrRotation(); autoLocateClaveBand(); } });
 elements.ocrCropRun.addEventListener('click', runOcrRead);
 elements.ocrCropBand.addEventListener('pointerdown', beginOcrBandDrag);
 elements.ocrCropBand.addEventListener('pointermove', moveOcrBandDrag);
@@ -2029,6 +2056,152 @@ function accessKeyHintsFromText(text) {
 // Reconstruye la clave de acceso a partir del texto crudo de un OCR.
 // `hints` puede traer ruc / serie / secuencial leídos por separado.
 // Devuelve { key, confidence: 'alta' | 'media' } o null.
+function accessKeyMatchesHints(key, hints = {}) {
+  return (!hints.ruc || key.slice(10, 23) === hints.ruc)
+    && (!hints.serie || key.slice(24, 30) === hints.serie)
+    && (!hints.secuencial || key.slice(30, 39) === hints.secuencial);
+}
+
+function classifyAccessKey(key, hints) {
+  if (isValidAccessKey(key) && accessKeyMatchesHints(key, hints)) return { key, confidence: 'alta' };
+  const { key: fixed, snapped } = snapAccessKeyFields(key, hints);
+  if (snapped && hasPlausibleAccessKeyShape(fixed) && isValidAccessKey(fixed) && accessKeyMatchesHints(fixed, hints)) {
+    return { key: fixed, confidence: 'media' };
+  }
+  if (isValidAccessKey(key)) return { key, confidence: 'media' };
+  return null;
+}
+
+function combinations(items, size) {
+  if (size === 0) return [[]];
+  if (items.length < size) return [];
+  const [head, ...rest] = items;
+  return [
+    ...combinations(rest, size - 1).map((combo) => [head, ...combo]),
+    ...combinations(rest, size)
+  ];
+}
+
+function bestAlignedWindow(digits, reference) {
+  let best = null;
+  for (let offset = 0; offset + 49 <= digits.length; offset += 1) {
+    const win = digits.slice(offset, offset + 49);
+    const distance = reference ? hammingDistance(win, reference) : 0;
+    if (!best || distance < best.distance) best = { win, offset, distance };
+  }
+  return best;
+}
+
+// Voto por posición entre las lecturas del OCR. Se alinean todas contra una
+// referencia (para no mezclar ventanas corridas), se toma el dígito más votado
+// por posición (ponderado por la confianza de Tesseract si viene) y, si el
+// resultado no valida, se prueban las 2ª/3ª opciones en las posiciones con
+// menos acuerdo. Sin RUC / número de factura con que contrastar, una clave
+// reconstruida se marca como "media" para que el usuario la revise.
+function voteAccessKey(reads, hints = {}) {
+  const merged = { ...hints };
+  const strings = (reads || [])
+    .map((read) => ({
+      digits: String(read?.digits || '').replace(/\D/g, ''),
+      weights: Array.isArray(read?.weights) ? read.weights : null
+    }))
+    .filter((read) => read.digits.length >= 46 && read.digits.length <= 64);
+  if (strings.length < 3) return null;
+
+  const exact = strings.find((read) => read.digits.length === 49);
+  let reference = exact ? exact.digits : null;
+  if (!reference) {
+    // referencia = la ventana de 49 que menos difiere del resto
+    let bestRef = null;
+    for (const read of strings) {
+      for (let offset = 0; offset + 49 <= read.digits.length; offset += 1) {
+        const win = read.digits.slice(offset, offset + 49);
+        let total = 0;
+        for (const other of strings) total += bestAlignedWindow(other.digits, win).distance;
+        if (!bestRef || total < bestRef.total) bestRef = { win, total };
+      }
+    }
+    reference = bestRef?.win || null;
+  }
+  if (!reference) return null;
+
+  const aligned = [];
+  for (const read of strings) {
+    const window = bestAlignedWindow(read.digits, reference);
+    if (!window || window.distance > 10) continue;
+    const weights = read.weights ? read.weights.slice(window.offset, window.offset + 49) : null;
+    aligned.push({ win: window.win, weights });
+  }
+  if (aligned.length < 3) return null;
+
+  const tally = Array.from({ length: 49 }, () => Object.create(null));
+  for (const { win, weights } of aligned) {
+    for (let i = 0; i < 49; i += 1) {
+      const weight = weights && Number.isFinite(weights[i]) ? Math.max(3, weights[i]) : 25;
+      tally[i][win[i]] = (tally[i][win[i]] || 0) + weight;
+    }
+  }
+  const ranked = tally.map((counts) => Object.entries(counts).sort((a, b) => b[1] - a[1]));
+  const consensus = ranked.map((entry) => entry[0][0]).join('');
+  const agreement = ranked.map((entry) => {
+    const total = entry.reduce((sum, option) => sum + option[1], 0);
+    return total ? entry[0][1] / total : 0;
+  });
+  const strongConsensus = agreement.every((value) => value >= 0.6);
+  const hasHints = Boolean(merged.ruc || merged.serie || merged.secuencial);
+
+  // Consenso directo válido.
+  if (isValidAccessKey(consensus) && hasPlausibleAccessKeyShape(consensus)) {
+    if (accessKeyMatchesHints(consensus, merged) && (hasHints || strongConsensus)) {
+      return { key: consensus, confidence: 'alta' };
+    }
+    const snap = snapAccessKeyFields(consensus, merged);
+    if (snap.snapped && isValidAccessKey(snap.key) && accessKeyMatchesHints(snap.key, merged)) {
+      return { key: snap.key, confidence: 'media' };
+    }
+    return { key: consensus, confidence: 'media' };
+  }
+
+  // Encajar RUC / serie / secuencial leídos aparte.
+  const snapped = snapAccessKeyFields(consensus, merged);
+  if (snapped.snapped && hasPlausibleAccessKeyShape(snapped.key)
+    && isValidAccessKey(snapped.key) && accessKeyMatchesHints(snapped.key, merged)) {
+    return { key: snapped.key, confidence: 'media' };
+  }
+
+  // Probar las 2ª/3ª opciones en las posiciones con menos acuerdo.
+  const weakest = agreement
+    .map((value, index) => [value, index])
+    .sort((a, b) => a[0] - b[0])
+    .slice(0, 5)
+    .map((entry) => entry[1]);
+  const matches = [];
+  for (let size = 1; size <= 3 && matches.length < 4; size += 1) {
+    for (const combo of combinations(weakest, size)) {
+      const options = combo.map((pos) => ranked[pos].slice(1, 4).map((entry) => entry[0]));
+      const cartesian = options.reduce(
+        (acc, list) => acc.flatMap((prefix) => list.map((value) => [...prefix, value])),
+        [[]]
+      );
+      for (const pick of cartesian) {
+        const chars = consensus.split('');
+        combo.forEach((pos, k) => { chars[pos] = pick[k]; });
+        const candidate = chars.join('');
+        if (!isValidAccessKey(candidate) || !hasPlausibleAccessKeyShape(candidate)) continue;
+        if (hasHints && !accessKeyMatchesHints(candidate, merged)) continue;
+        matches.push({ key: candidate, flips: size });
+      }
+    }
+  }
+  if (!matches.length) return null;
+  matches.sort((a, b) => a.flips - b.flips);
+  if (hasHints) return { key: matches[0].key, confidence: 'alta' };
+  // Sin datos con que contrastar: solo si la corrección es mínima e inequívoca.
+  const unambiguous = new Set(matches.map((entry) => entry.key)).size === 1;
+  if (matches[0].flips <= 1 || unambiguous) return { key: matches[0].key, confidence: 'media' };
+  return null;
+}
+
 function resolveAccessKeyFromText(rawText, hints = {}) {
   const text = String(rawText || '');
   const merged = { ...accessKeyHintsFromText(text), ...hints };
@@ -2063,10 +2236,7 @@ function resolveAccessKeyFromText(rawText, hints = {}) {
     }
   }
 
-  const isConsistentWithHints = (key) =>
-    (!merged.ruc || key.slice(10, 23) === merged.ruc)
-    && (!merged.serie || key.slice(24, 30) === merged.serie)
-    && (!merged.secuencial || key.slice(30, 39) === merged.secuencial);
+  const isConsistentWithHints = (key) => accessKeyMatchesHints(key, merged);
 
   const hasHints = Boolean(merged.serie || merged.secuencial || merged.ruc);
   const validKeys = [...candidates.keys()].filter((candidate) => isValidAccessKey(candidate));
