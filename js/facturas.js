@@ -440,10 +440,13 @@
       lines.push(`Saldo pendiente: *${money(total)}*  (${pendientes.length} ${pendientes.length === 1 ? 'factura' : 'facturas'})`);
       const buckets = [[], [], [], []];
       pendientes.forEach((invoice) => buckets[visitBucketIndex(invoice.dias_vencimiento)].push(invoice));
-      buckets.forEach((bucket, index) => {
+      // De más vencidas a menos vencidas: >60 días → 31-60 → 1-30 → por vencer.
+      [3, 2, 1, 0].forEach((index) => {
+        const bucket = buckets[index];
         if (!bucket.length) return;
         bucket.sort((a, b) => (a.dias_vencimiento ?? 0) - (b.dias_vencimiento ?? 0));
-        lines.push('', `*${VISIT_BUCKET_TITLES[index]}*`);
+        const subtotal = bucket.reduce((sum, invoice) => sum + (Number(invoice.saldo_pendiente) || 0), 0);
+        lines.push('', `*${VISIT_BUCKET_TITLES[index]}: ${money(subtotal)}*`);
         bucket.forEach((invoice) => {
           lines.push(`- ${shortInvoiceNumber(invoice.numero_factura)} · ${visitDayText(invoice.dias_vencimiento)} · ${money(invoice.saldo_pendiente)}`);
         });

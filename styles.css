@@ -635,7 +635,7 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .mobile-invoice-item-meta { font-size: 12px; font-weight: 700; color: var(--muted); }
 
 /* ============ Diálogo de confirmación propio (nunca window.confirm) ============ */
-.app-dialog { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(12, 14, 18, 0.55); }
+.app-dialog { position: fixed; inset: 0; z-index: 1300; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(12, 14, 18, 0.55); }
 .app-dialog-box { width: min(420px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 22px; box-shadow: 0 20px 60px rgba(10, 12, 16, 0.35); }
 .app-dialog-box p { margin: 0 0 20px; color: var(--ink); font-size: 15px; font-weight: 650; line-height: 1.45; }
 .app-dialog-actions { display: flex; gap: 10px; justify-content: flex-end; }
