@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260905.14';
+const APP_BUILD = '20260905.15';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -380,14 +380,12 @@ async function posApiRequest(path, options = {}) {
   const token = data?.session?.access_token;
   if (error || !token) throw new Error('Sesión no disponible para llamar al backend seguro.');
 
-  const response = await fetch(`${POS_API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-      ...(options.headers || {})
-    }
-  });
+  const headers = { Authorization: `Bearer ${token}`, ...(options.headers || {}) };
+  // Solo se declara JSON cuando hay cuerpo: Fastify rechaza con 400 un
+  // Content-Type: application/json sin cuerpo (p. ej. DELETE).
+  const hasContentType = Object.keys(headers).some((name) => name.toLowerCase() === 'content-type');
+  if (options.body != null && !hasContentType) headers['Content-Type'] = 'application/json';
+  const response = await fetch(`${POS_API_BASE_URL}${path}`, { ...options, headers });
   const raw = await response.text();
   let body = null;
   if (raw) {
