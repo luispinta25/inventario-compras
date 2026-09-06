@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260905.10';
+const APP_BUILD = '20260905.11';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -38,7 +38,7 @@ const elements = Object.fromEntries([
   'mobileInvoiceItems', 'mobileInvoiceTotal', 'mobileInvoiceItemsList', 'mobileSaveButton',
   'mobileLinkProviderButton', 'mobileScanAnotherButton',
   'ocrPickCamera', 'ocrPickGallery', 'ocrKeyFileCamera',
-  'ocrKeyFileGallery', 'ocrCrop', 'ocrCropStage', 'ocrCropImage', 'ocrCropBand',
+  'ocrKeyFileGallery', 'ocrCrop', 'ocrCropStage', 'ocrCropImage', 'ocrQuadOutline',
   'ocrCropCancel', 'ocrCropRun', 'ocrRotateButton',
   'appDialog', 'appDialogText', 'appDialogCancel', 'appDialogConfirm'
 ].map((id) => [id, document.getElementById(id)]));
@@ -1266,9 +1266,11 @@ let ocrModuleRequest = null;
 let ocrSourceRaw = null;       // canvas ya reducido, sin rotar
 let ocrSource = null;          // canvas rotado que se pasa al OCR
 let ocrRotation = 0;           // 0 / 90 / 180 / 270
-let ocrBand = { top: 0.42, height: 0.16 };
-let ocrBandDrag = null;
-let ocrBandUserMoved = false;
+// 4 esquinas del área de la clave, en fracciones del escenario. Orden TL,TR,BR,BL.
+const OCR_QUAD_DEFAULT = [{ x: 0.05, y: 0.4 }, { x: 0.95, y: 0.4 }, { x: 0.95, y: 0.58 }, { x: 0.05, y: 0.58 }];
+let ocrQuad = OCR_QUAD_DEFAULT.map((p) => ({ ...p }));
+let ocrQuadDrag = null;
+let ocrQuadUserMoved = false;
 let ocrBusy = false;
 
 function loadOcrModule() {
@@ -1284,10 +1286,15 @@ function loadOcrModule() {
   return ocrModuleRequest;
 }
 
-function renderOcrBand() {
-  const style = elements.ocrCropBand.style;
-  style.top = `${(ocrBand.top * 100).toFixed(2)}%`;
-  style.height = `${(ocrBand.height * 100).toFixed(2)}%`;
+function renderOcrQuad() {
+  const corners = elements.ocrCropStage.querySelectorAll('.ocr-corner');
+  corners.forEach((corner) => {
+    const point = ocrQuad[Number(corner.dataset.corner)];
+    corner.style.left = `${(point.x * 100).toFixed(2)}%`;
+    corner.style.top = `${(point.y * 100).toFixed(2)}%`;
+  });
+  const polygon = elements.ocrQuadOutline.querySelector('polygon');
+  polygon.setAttribute('points', ocrQuad.map((p) => `${(p.x * 100).toFixed(2)},${(p.y * 100).toFixed(2)}`).join(' '));
 }
 
 function closeOcrCrop() {
@@ -1298,7 +1305,7 @@ function closeOcrCrop() {
   ocrSource = null;
   ocrSourceRaw = null;
   ocrRotation = 0;
-  ocrBandDrag = null;
+  ocrQuadDrag = null;
   elements.ocrKeyFileCamera.value = '';
   elements.ocrKeyFileGallery.value = '';
 }
@@ -1322,13 +1329,13 @@ function applyOcrRotation() {
     ocrSource = canvas;
   }
   elements.ocrCropImage.src = ocrSource.toDataURL('image/jpeg', 0.85);
-  ocrBand = { top: 0.42, height: 0.16 };
-  ocrBandUserMoved = false;
-  renderOcrBand();
+  ocrQuad = OCR_QUAD_DEFAULT.map((p) => ({ ...p }));
+  ocrQuadUserMoved = false;
+  renderOcrQuad();
 }
 
-// Ubica sola la línea de la clave y coloca el recuadro ahí, salvo que el
-// usuario ya lo haya movido.
+// Ubica sola la línea de la clave y coloca las 4 esquinas ahí, salvo que el
+// usuario ya las haya movido.
 let ocrAutoLocateToken = 0;
 function autoLocateClaveBand() {
   if (!ocrSource) return;
@@ -1337,15 +1344,17 @@ function autoLocateClaveBand() {
   loadOcrModule()
     .then(() => window.ocrClave?.locateClaveLine?.(target))
     .then((band) => {
-      if (!band || token !== ocrAutoLocateToken || ocrBandUserMoved || ocrSource !== target || elements.ocrCrop.hidden) return;
-      ocrBand = {
-        top: Math.max(0, Math.min(0.94, band.top)),
-        height: Math.max(0.05, Math.min(1 - Math.max(0, band.top), band.height))
-      };
-      renderOcrBand();
-      setMobileStatus('Recuadro colocado sobre la clave. Ajústalo si hace falta y toca Leer.');
+      if (!band || token !== ocrAutoLocateToken || ocrQuadUserMoved || ocrSource !== target || elements.ocrCrop.hidden) return;
+      const top = Math.max(0, Math.min(0.92, band.top));
+      const bottom = Math.max(top + 0.04, Math.min(0.99, band.top + band.height));
+      ocrQuad = [
+        { x: 0.03, y: top }, { x: 0.97, y: top },
+        { x: 0.97, y: bottom }, { x: 0.03, y: bottom }
+      ];
+      renderOcrQuad();
+      setMobileStatus('Esquinas colocadas sobre la clave. Ajústalas si hace falta y toca Leer.');
     })
-    .catch(() => { /* si falla, queda el recuadro por defecto */ });
+    .catch(() => { /* si falla, quedan las esquinas por defecto */ });
 }
 
 function loadImageElement(url) {
@@ -1397,37 +1406,41 @@ async function openOcrCropFromFile(file) {
   loadOcrModule().then(() => window.ocrClave?.warmup?.()).catch(() => {});
 }
 
-function beginOcrBandDrag(event) {
-  ocrBandUserMoved = true;
-  const edge = event.target?.dataset?.edge || 'move';
-  ocrBandDrag = {
-    edge,
-    startY: event.clientY,
-    startTop: ocrBand.top,
-    startHeight: ocrBand.height,
-    stageHeight: elements.ocrCropStage.getBoundingClientRect().height || 1
+function pointFromEvent(event) {
+  const rect = elements.ocrCropStage.getBoundingClientRect();
+  return {
+    x: Math.min(1, Math.max(0, (event.clientX - rect.left) / (rect.width || 1))),
+    y: Math.min(1, Math.max(0, (event.clientY - rect.top) / (rect.height || 1)))
   };
-  elements.ocrCropBand.setPointerCapture?.(event.pointerId);
+}
+
+function beginOcrQuadDrag(event) {
+  const handle = event.target.closest('.ocr-corner');
+  let index;
+  if (handle) {
+    index = Number(handle.dataset.corner);
+  } else {
+    // toca dentro del escenario: arrastra la esquina más cercana si está cerca
+    const point = pointFromEvent(event);
+    const [distance, nearest] = ocrQuad
+      .map((corner, i) => [Math.hypot(corner.x - point.x, corner.y - point.y), i])
+      .sort((a, b) => a[0] - b[0])[0];
+    if (distance > 0.22) return;
+    index = nearest;
+  }
+  ocrQuadUserMoved = true;
+  ocrQuadDrag = { index };
+  elements.ocrCropStage.setPointerCapture?.(event.pointerId);
   event.preventDefault();
 }
 
-function moveOcrBandDrag(event) {
-  if (!ocrBandDrag) return;
-  const delta = (event.clientY - ocrBandDrag.startY) / ocrBandDrag.stageHeight;
-  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-  if (ocrBandDrag.edge === 'move') {
-    ocrBand.top = clamp(ocrBandDrag.startTop + delta, 0, 1 - ocrBand.height);
-  } else if (ocrBandDrag.edge === 'top') {
-    const nextTop = clamp(ocrBandDrag.startTop + delta, 0, ocrBandDrag.startTop + ocrBandDrag.startHeight - 0.04);
-    ocrBand.height = ocrBandDrag.startHeight + (ocrBandDrag.startTop - nextTop);
-    ocrBand.top = nextTop;
-  } else {
-    ocrBand.height = clamp(ocrBandDrag.startHeight + delta, 0.04, 1 - ocrBand.top);
-  }
-  renderOcrBand();
+function moveOcrQuadDrag(event) {
+  if (!ocrQuadDrag) return;
+  ocrQuad[ocrQuadDrag.index] = pointFromEvent(event);
+  renderOcrQuad();
 }
 
-function endOcrBandDrag() { ocrBandDrag = null; }
+function endOcrQuadDrag() { ocrQuadDrag = null; }
 
 async function runOcrRead() {
   if (!ocrSource || ocrBusy) return;
@@ -1437,13 +1450,13 @@ async function runOcrRead() {
   setMobileStatus('Leyendo la clave… puede tardar unos segundos.', 'loading');
   try {
     await loadOcrModule();
-    const sourceHeight = ocrSource.height;
-    const sourceWidth = ocrSource.width;
-    const pad = 0.02;
-    const y = Math.max(0, (ocrBand.top - pad) * sourceHeight);
-    const h = Math.min(sourceHeight - y, (ocrBand.height + pad * 2) * sourceHeight);
+    const quadPixels = ocrQuad.map((point) => ({
+      x: point.x * ocrSource.width,
+      y: point.y * ocrSource.height
+    }));
+    const strip = window.ocrClave.warpQuad(ocrSource, quadPixels);
     const hit = await Promise.race([
-      window.ocrClave.run(ocrSource, { x: 0, y, w: sourceWidth, h }, {
+      window.ocrClave.run(strip, null, {
         onProgress: (message) => setMobileStatus(`${message}`, 'loading')
       }),
       new Promise((_, reject) => window.setTimeout(() => reject(new Error('La lectura tardó demasiado. Inténtalo de nuevo con más luz o escríbela.')), OCR_TIMEOUT_MS))
@@ -1494,12 +1507,11 @@ elements.ocrKeyFileGallery.addEventListener('change', handleOcrFileChange);
 elements.ocrCropCancel.addEventListener('click', () => { if (!ocrBusy) { closeOcrCrop(); setMobileStatus(''); } });
 elements.ocrRotateButton.addEventListener('click', () => { if (!ocrBusy && ocrSourceRaw) { ocrRotation += 90; applyOcrRotation(); autoLocateClaveBand(); } });
 elements.ocrCropRun.addEventListener('click', runOcrRead);
-elements.ocrCropBand.addEventListener('pointerdown', beginOcrBandDrag);
-elements.ocrCropBand.addEventListener('pointermove', moveOcrBandDrag);
-elements.ocrCropBand.addEventListener('pointerup', endOcrBandDrag);
-elements.ocrCropBand.addEventListener('pointercancel', endOcrBandDrag);
-elements.ocrCropBand.addEventListener('lostpointercapture', endOcrBandDrag);
-elements.ocrCropBand.addEventListener('pointercancel', endOcrBandDrag);
+elements.ocrCropStage.addEventListener('pointerdown', beginOcrQuadDrag);
+elements.ocrCropStage.addEventListener('pointermove', moveOcrQuadDrag);
+elements.ocrCropStage.addEventListener('pointerup', endOcrQuadDrag);
+elements.ocrCropStage.addEventListener('pointercancel', endOcrQuadDrag);
+elements.ocrCropStage.addEventListener('lostpointercapture', endOcrQuadDrag);
 
 document.querySelectorAll('[data-app-module]').forEach((item) => {
   item.addEventListener('click', async (event) => {

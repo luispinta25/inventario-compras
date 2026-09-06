@@ -459,7 +459,7 @@
             <input id="ocrKeyFileGallery" type="file" accept="image/*" hidden>
 
             <div class="ocr-crop" id="ocrCrop" hidden>
-              <p class="ocr-crop-hint">Coloca el recuadro sobre la línea <strong>completa</strong> de la <strong>CLAVE DE ACCESO</strong> (o de <strong>AUTORIZACIÓN</strong>): deben verse los 49 dígitos de principio a fin. Toca Leer.</p>
+              <p class="ocr-crop-hint">Arrastra las <strong>4 esquinas</strong> para encuadrar la línea <strong>completa</strong> de la <strong>CLAVE DE ACCESO</strong> (o de <strong>AUTORIZACIÓN</strong>). Corrige la inclinación si la foto se tomó de lado. Toca Leer.</p>
               <div class="ocr-crop-toolbar">
                 <button type="button" class="button button-secondary" id="ocrRotateButton">
                   <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
@@ -468,10 +468,13 @@
               </div>
               <div class="ocr-crop-stage" id="ocrCropStage">
                 <img id="ocrCropImage" alt="Foto de la factura">
-                <div class="ocr-crop-band" id="ocrCropBand" role="slider" aria-label="Recuadro sobre la clave" tabindex="0">
-                  <span class="ocr-crop-grip ocr-crop-grip-top" data-edge="top" aria-hidden="true"></span>
-                  <span class="ocr-crop-grip ocr-crop-grip-bottom" data-edge="bottom" aria-hidden="true"></span>
-                </div>
+                <svg class="ocr-quad-outline" id="ocrQuadOutline" aria-hidden="true" preserveAspectRatio="none" viewBox="0 0 100 100">
+                  <polygon points="" />
+                </svg>
+                <span class="ocr-corner" data-corner="0" role="slider" aria-label="Esquina superior izquierda" tabindex="0"></span>
+                <span class="ocr-corner" data-corner="1" role="slider" aria-label="Esquina superior derecha" tabindex="0"></span>
+                <span class="ocr-corner" data-corner="2" role="slider" aria-label="Esquina inferior derecha" tabindex="0"></span>
+                <span class="ocr-corner" data-corner="3" role="slider" aria-label="Esquina inferior izquierda" tabindex="0"></span>
               </div>
               <div class="ocr-crop-actions">
                 <button type="button" class="button button-secondary" id="ocrCropCancel">Cancelar</button>
