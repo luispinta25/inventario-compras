@@ -554,6 +554,10 @@
               <i class="fa-solid fa-rotate" aria-hidden="true"></i>
               Recargar
             </button>
+            <button type="button" class="button button-secondary" id="invNotifyButton">
+              <i class="fa-solid fa-bell" aria-hidden="true"></i>
+              Notificar visita
+            </button>
           </section>
 
           <p class="invoices-summary" id="invoicesSummary" aria-live="polite">Cargando facturas…</p>
@@ -659,6 +663,43 @@
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="invoice-modal" id="visitModal" hidden>
+        <div class="invoice-modal-overlay" id="visitModalOverlay"></div>
+        <section class="invoice-modal-dialog visit-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="visitModalTitle">
+          <header>
+            <div>
+              <p class="section-kicker">Aviso al grupo</p>
+              <h2 id="visitModalTitle">Notificar visita de proveedor</h2>
+            </div>
+            <button type="button" class="icon-button" id="visitModalClose" title="Cerrar" aria-label="Cerrar">
+              <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+          </header>
+          <div class="invoice-modal-body">
+            <label class="visit-field">
+              <span>Proveedor que visitó</span>
+              <select id="visitProvider">
+                <option value="">Selecciona un proveedor</option>
+              </select>
+            </label>
+            <label class="visit-field">
+              <span>Motivo o nota (opcional)</span>
+              <textarea id="visitMotivo" rows="2" maxlength="400" placeholder="Ej.: dejó cotización, retira cheque el viernes…"></textarea>
+            </label>
+            <p class="visit-preview-label">Mensaje que se enviará al grupo</p>
+            <pre class="visit-preview" id="visitPreview">Selecciona un proveedor para ver el mensaje.</pre>
+            <p class="invoice-pago-error" id="visitError" hidden></p>
+            <div class="invoice-pago-actions">
+              <button type="button" class="button button-secondary" id="visitCancel">Cancelar</button>
+              <button type="button" class="button button-primary" id="visitSend" disabled>
+                <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
+                Enviar al grupo
+              </button>
             </div>
           </div>
         </section>
