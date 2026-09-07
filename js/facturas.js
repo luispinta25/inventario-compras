@@ -70,9 +70,11 @@
     if (!state.items.length) summary.textContent = 'Cargando facturas…';
     try {
       const proveedor = el('invProveedorFilter').value;
+      const emisor = el('invEmisorFilter') ? el('invEmisorFilter').value : '';
       const estado = el('invEstadoFilter').value;
       const params = new URLSearchParams({ estado });
       if (proveedor && proveedor !== 'todos') params.set('proveedor_id', proveedor);
+      if (emisor && emisor !== 'todas') params.set('emisor_id', emisor);
       const response = await window.app.posApiRequest(`${API}?${params.toString()}`, { method: 'GET' });
       const data = response?.data || {};
       state.items = Array.isArray(data.items) ? data.items : [];
@@ -85,6 +87,7 @@
         fillVisitProviders(state.providers);
         state.providersLoaded = true;
       }
+      refreshEmisorFilter();
 
       renderTotals(data.totals || {});
       renderGrid();
@@ -118,6 +121,36 @@
         select.appendChild(option);
       });
     if ([...select.options].some((option) => option.value === current)) select.value = current;
+  }
+
+  // Filtro secundario por razón social: solo aparece cuando el proveedor elegido
+  // factura con más de un emisor legal (varias razones sociales / RUC).
+  function refreshEmisorFilter() {
+    const wrap = el('invEmisorFilterWrap');
+    const select = el('invEmisorFilter');
+    if (!wrap || !select) return;
+    const providerId = el('invProveedorFilter').value;
+    const provider = state.providers.find((item) => item.id === providerId);
+    const emisores = provider && Array.isArray(provider.emisores) ? provider.emisores : [];
+    if (emisores.length <= 1) {
+      wrap.hidden = true;
+      select.value = 'todas';
+      return;
+    }
+    const current = select.value;
+    select.replaceChildren();
+    const todas = document.createElement('option');
+    todas.value = 'todas';
+    todas.textContent = 'Todas las razones sociales';
+    select.appendChild(todas);
+    emisores.forEach((emisor) => {
+      const option = document.createElement('option');
+      option.value = emisor.id;
+      option.textContent = `${emisor.razon_social}${emisor.es_principal ? ' (principal)' : ''} · ${emisor.ruc}`;
+      select.appendChild(option);
+    });
+    select.value = [...select.options].some((option) => option.value === current) ? current : 'todas';
+    wrap.hidden = false;
   }
 
   function renderTotals(totals) {
@@ -170,8 +203,11 @@
 
     const body = document.createElement('div');
     body.className = 'invoice-card-body';
+    body.append(row('Proveedor', invoice.proveedor_empresa || '-'));
+    if (invoice.emisor_razon_social && invoice.emisor_razon_social !== invoice.proveedor_empresa) {
+      body.append(row('Razón social', invoice.emisor_razon_social));
+    }
     body.append(
-      row('Proveedor', invoice.proveedor_empresa || '-'),
       row('Total', money(invoice.total_factura)),
       row('Saldo', money(invoice.saldo_pendiente), invoice.saldo_pendiente > 0 ? 'is-info' : ''),
       row('Emisión', fmtDate(invoice.fecha_emision)),
@@ -210,6 +246,14 @@
     el('invModalTitle').textContent = `Factura ${invoice.numero_factura || ''}`.trim();
     el('invDetNumero').textContent = invoice.numero_factura || '-';
     el('invDetProveedor').textContent = invoice.proveedor_empresa || '-';
+    const razonWrap = el('invDetRazonSocialWrap');
+    if (razonWrap) {
+      const showRazon = Boolean(invoice.emisor_razon_social);
+      razonWrap.hidden = !showRazon;
+      el('invDetRazonSocial').textContent = showRazon
+        ? `${invoice.emisor_razon_social}${invoice.emisor_ruc ? ` · RUC ${invoice.emisor_ruc}` : ''}`
+        : '-';
+    }
     el('invDetEmision').textContent = fmtDate(invoice.fecha_emision);
     el('invDetVencimiento').textContent = fmtDate(invoice.fecha_vencimiento);
     el('invDetSubtotal').textContent = money(invoice.subtotal);
@@ -761,7 +805,12 @@
     state.bound = true;
 
     el('invRefreshButton').addEventListener('click', loadInvoices);
-    el('invProveedorFilter').addEventListener('change', loadInvoices);
+    el('invProveedorFilter').addEventListener('change', () => {
+      if (el('invEmisorFilter')) el('invEmisorFilter').value = 'todas';
+      refreshEmisorFilter();
+      loadInvoices();
+    });
+    if (el('invEmisorFilter')) el('invEmisorFilter').addEventListener('change', loadInvoices);
     el('invEstadoFilter').addEventListener('change', loadInvoices);
 
     el('invModalClose').addEventListener('click', closeModal);

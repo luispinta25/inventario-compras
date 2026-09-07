@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260906.15';
+const APP_BUILD = '20260907.16';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -96,6 +96,7 @@ let providerLinkCandidates = [];
 let selectedProviderForLink = null;
 let providerLinkCandidatesRequest = null;
 let providerLinkContinuation = null;
+let providerLinkSuggested = null;
 let currentPendingDocumentId = null;
 let pendingLeaseRefreshedAt = 0;
 let pendingDocuments = [];
@@ -1282,6 +1283,7 @@ async function previewMobileDocument() {
     elements.mobileScanAnotherButton.hidden = false;
     if (capture.requires_provider_link) {
       renderMobileInvoiceSummary(draft, 'Proveedor pendiente de vincular');
+      providerLinkSuggested = capture.suggested_provider || null;
       providerLinkContinuation = 'mobile-preview';
       elements.mobileLinkProviderButton.hidden = false;
       elements.mobileSaveButton.hidden = true;
@@ -1317,6 +1319,7 @@ async function confirmMobileDocument() {
     });
     const capture = result.data;
     if (capture.requires_provider_link) {
+      providerLinkSuggested = capture.suggested_provider || null;
       providerLinkContinuation = 'mobile-save';
       elements.mobileLinkProviderButton.hidden = false;
       elements.mobileSaveButton.hidden = true;
@@ -2471,6 +2474,7 @@ async function captureDesktopDocument({ preview = false } = {}) {
     });
     const capture = result.data;
     if (capture.requires_provider_link) {
+      providerLinkSuggested = capture.suggested_provider || null;
       providerLinkContinuation = preview ? 'desktop-preview' : 'desktop-capture';
       await renderDraft(capture.draft);
       elements.saveToPendingButton.disabled = true;
@@ -2786,22 +2790,38 @@ async function loadKeyBuilderProviders() {
     try {
       const response = await posApiRequest('/api/purchases/v2/providers');
       const rows = Array.isArray(response?.data) ? response.data : [];
+      // Un proveedor comercial puede facturar con varias razones sociales (emisores);
+      // se aplana a una opción por emisor con RUC válido.
       keyBuilderProviders = rows
-        .map((row) => ({
-          id: row.id,
-          empresa: row.empresa || row.razon_social || 'Proveedor',
-          ruc: String(row.ruc || '').replace(/\D/g, ''),
-          razon_social: row.razon_social || ''
-        }))
+        .flatMap((row) => {
+          const empresa = row.empresa || row.razon_social || 'Proveedor';
+          const emisores = Array.isArray(row.emisores) && row.emisores.length
+            ? row.emisores
+            : [{ ruc: row.ruc, razon_social: row.razon_social, es_principal: true }];
+          const multi = emisores.filter((em) => /^\d{13}$/.test(String(em.ruc || '').replace(/\D/g, ''))).length > 1;
+          return emisores.map((em) => ({
+            id: `${row.id}:${String(em.ruc || '').replace(/\D/g, '')}`,
+            proveedor_id: row.id,
+            empresa,
+            ruc: String(em.ruc || '').replace(/\D/g, ''),
+            razon_social: em.razon_social || '',
+            es_principal: Boolean(em.es_principal),
+            multi
+          }));
+        })
         .filter((row) => /^\d{13}$/.test(row.ruc))
-        .sort((a, b) => a.empresa.localeCompare(b.empresa, 'es'));
+        .sort((a, b) => a.empresa.localeCompare(b.empresa, 'es')
+          || Number(b.es_principal) - Number(a.es_principal)
+          || a.razon_social.localeCompare(b.razon_social, 'es'));
       setKeyBuilderProviderPlaceholder(keyBuilderProviders.length
         ? 'Selecciona un proveedor'
         : 'No hay proveedores con RUC vinculado');
       keyBuilderProviders.forEach((provider) => {
         const option = document.createElement('option');
         option.value = provider.id;
-        option.textContent = `${provider.empresa} · ${provider.ruc}`;
+        option.textContent = provider.multi && provider.razon_social
+          ? `${provider.empresa} · ${provider.razon_social} · ${provider.ruc}`
+          : `${provider.empresa} · ${provider.ruc}`;
         elements.kbProvider.appendChild(option);
       });
       elements.kbProvider.disabled = keyBuilderProviders.length === 0;
@@ -2963,11 +2983,12 @@ function renderProviderLinkCandidates() {
 
   elements.providerLinkGrid.replaceChildren();
   candidates.forEach((provider) => {
-    const hasDifferentTaxId = provider.ruc && provider.ruc !== draftTaxId;
+    // Un proveedor comercial puede tener varias razones sociales: si ya tiene un
+    // RUC distinto, este XML se agrega como un emisor más (no se bloquea).
+    const addsNewEmisor = provider.ruc && provider.ruc !== draftTaxId;
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `provider-link-option${selectedProviderForLink?.id === provider.id ? ' selected' : ''}`;
-    button.disabled = Boolean(hasDifferentTaxId);
     button.setAttribute('aria-pressed', selectedProviderForLink?.id === provider.id ? 'true' : 'false');
 
     const name = document.createElement('strong');
@@ -2975,9 +2996,9 @@ function renderProviderLinkCandidates() {
     const detail = document.createElement('span');
     detail.textContent = [provider.codigo && `Código ${provider.codigo}`, provider.razon_social].filter(Boolean).join(' · ');
     button.append(name, detail);
-    if (hasDifferentTaxId) {
+    if (addsNewEmisor) {
       const warning = document.createElement('small');
-      warning.textContent = 'Ya tiene otro RUC vinculado';
+      warning.textContent = 'Se agregará como nueva razón social de este proveedor';
       button.appendChild(warning);
     }
     button.addEventListener('click', () => {
@@ -3020,6 +3041,7 @@ async function loadProviderLinkCandidates() {
 function closeProviderLinking() {
   elements.providerLinkModal.hidden = true;
   selectedProviderForLink = null;
+  providerLinkSuggested = null;
   elements.providerLinkConfirmButton.disabled = true;
   elements.providerLinkSearchInput.value = '';
 }
@@ -3031,6 +3053,11 @@ async function openProviderLinking() {
   elements.providerLinkXmlName.textContent = currentDraft.provider?.trade_name || currentDraft.provider?.legal_name || 'Proveedor sin nombre';
   elements.providerLinkXmlTaxId.textContent = `RUC ${currentDraft.provider?.tax_id || 'no informado'}`;
   elements.providerLinkModalStatus.classList.remove('error');
+  // Si el backend sugiere un proveedor por nombre comercial, se prefiltra para
+  // que baste un clic ("agregar esta razón social a ...").
+  if (providerLinkSuggested?.empresa && !elements.providerLinkSearchInput.value) {
+    elements.providerLinkSearchInput.value = providerLinkSuggested.empresa;
+  }
   elements.providerLinkModal.hidden = false;
   elements.providerLinkSearchInput.focus();
   try {

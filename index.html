@@ -541,6 +541,12 @@
                 <option value="todos">Todos los proveedores</option>
               </select>
             </label>
+            <label class="invoices-field" id="invEmisorFilterWrap" hidden>
+              <span>Razón social</span>
+              <select id="invEmisorFilter" class="form-select">
+                <option value="todas">Todas las razones sociales</option>
+              </select>
+            </label>
             <label class="invoices-field">
               <span>Estado</span>
               <select id="invEstadoFilter" class="form-select">
@@ -590,6 +596,7 @@
               <dl class="invoice-detail-grid">
                 <div><dt>Número</dt><dd id="invDetNumero">-</dd></div>
                 <div><dt>Proveedor</dt><dd id="invDetProveedor">-</dd></div>
+                <div id="invDetRazonSocialWrap" hidden><dt>Razón social</dt><dd id="invDetRazonSocial">-</dd></div>
                 <div><dt>Emisión</dt><dd id="invDetEmision">-</dd></div>
                 <div><dt>Vencimiento</dt><dd id="invDetVencimiento">-</dd></div>
                 <div><dt>Subtotal</dt><dd id="invDetSubtotal">-</dd></div>
