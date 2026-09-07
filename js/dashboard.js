@@ -183,23 +183,55 @@
     });
   }
 
-  function renderWeek(data) {
-    const rows = (data.semana || [])
-      .slice()
-      .sort((a, b) => num(b.dias_atraso) - num(a.dias_atraso) || num(b.saldo_pendiente) - num(a.saldo_pendiente))
-      .slice(0, 8);
-    const wrap = el('dashWeek');
+  function renderOverdue60(data) {
+    const items = (data.vencidas_60 || []).slice();
+    const wrap = el('dashOverdue60');
+    const totalEl = el('dashOverdue60Total');
     wrap.replaceChildren();
-    if (!rows.length) {
-      wrap.appendChild(emptyBlock('Nada próximo a vencer ni atrasos altos.'));
+    if (!items.length) {
+      totalEl.textContent = '';
+      wrap.appendChild(emptyBlock('Ninguna factura supera los 60 días de atraso.'));
       return;
     }
-    rows.forEach((f) => {
-      const estado = num(f.dias_atraso) > 0
-        ? `${num(f.dias_atraso)} días vencida`
-        : `vence en ${num(f.dias_para_vencer)} días`;
-      wrap.appendChild(listRow(f.proveedor || 'Sin proveedor', money(f.saldo_pendiente), `${f.numero_factura || ''} · ${estado}`));
+    const total = items.reduce((s, f) => s + num(f.saldo_pendiente), 0);
+    totalEl.textContent = `Total: ${money(total)} · ${items.length} ${items.length === 1 ? 'factura' : 'facturas'}`;
+
+    const groups = new Map();
+    items.forEach((f) => {
+      const key = f.proveedor || 'Sin proveedor';
+      if (!groups.has(key)) groups.set(key, { total: 0, rows: [] });
+      const group = groups.get(key);
+      group.total += num(f.saldo_pendiente);
+      group.rows.push(f);
     });
+
+    [...groups.entries()]
+      .sort((a, b) => b[1].total - a[1].total)
+      .forEach(([proveedor, group]) => {
+        const box = document.createElement('div');
+        box.className = 'dashboard-overdue-group';
+        const head = document.createElement('div');
+        head.className = 'dashboard-overdue-head';
+        const name = document.createElement('span');
+        name.textContent = proveedor;
+        const groupTotal = document.createElement('strong');
+        groupTotal.textContent = money(group.total);
+        head.append(name, groupTotal);
+        box.appendChild(head);
+        group.rows
+          .sort((a, b) => num(b.dias_atraso) - num(a.dias_atraso))
+          .forEach((f) => {
+            const row = document.createElement('div');
+            row.className = 'dashboard-overdue-row';
+            const label = document.createElement('span');
+            label.textContent = `${f.numero_factura || ''} · ${num(f.dias_atraso)} días vencida`;
+            const amount = document.createElement('strong');
+            amount.textContent = money(f.saldo_pendiente);
+            row.append(label, amount);
+            box.appendChild(row);
+          });
+        wrap.appendChild(box);
+      });
   }
 
   function renderSales(data) {
@@ -274,9 +306,9 @@
     renderKpis(data);
     renderPriority(data);
     renderBuckets();
-    renderWeek(data);
-    renderSales(data);
     renderRecs(data);
+    renderOverdue60(data);
+    renderSales(data);
   }
 
   // ---- Carga ----------------------------------------------------------------

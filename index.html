@@ -746,36 +746,33 @@
               </div>
             </section>
 
-            <section class="dashboard-card">
-              <div class="dashboard-card-head">
-                <h2>Vencimientos</h2>
-                <p>Semáforo por antigüedad del saldo pendiente.</p>
-              </div>
-              <div id="dashBuckets" class="dashboard-buckets"></div>
-            </section>
+            <div class="dashboard-col">
+              <section class="dashboard-card">
+                <div class="dashboard-card-head">
+                  <h2>Vencimientos</h2>
+                  <p>Semáforo por antigüedad del saldo pendiente.</p>
+                </div>
+                <div id="dashBuckets" class="dashboard-buckets"></div>
+                <div class="dashboard-subhead">Recomendaciones</div>
+                <div id="dashRecs" class="dashboard-recs"></div>
+              </section>
+
+              <section class="dashboard-card">
+                <div class="dashboard-card-head">
+                  <h2>Ventas asociadas por proveedor</h2>
+                  <p>Calculado con el proveedor actual del producto en inventario.</p>
+                </div>
+                <div id="dashSales" class="dashboard-list"></div>
+              </section>
+            </div>
 
             <section class="dashboard-card">
               <div class="dashboard-card-head">
-                <h2>Esta semana</h2>
-                <p>Facturas que vencen pronto o con atraso alto.</p>
+                <h2>Vencidas hace más de 60 días</h2>
+                <p>Agrupadas por proveedor.</p>
               </div>
-              <div id="dashWeek" class="dashboard-list"></div>
-            </section>
-
-            <section class="dashboard-card dashboard-card-wide">
-              <div class="dashboard-card-head">
-                <h2>Ventas asociadas por proveedor</h2>
-                <p>Calculado con el proveedor actual del producto en inventario.</p>
-              </div>
-              <div id="dashSales" class="dashboard-list"></div>
-            </section>
-
-            <section class="dashboard-card">
-              <div class="dashboard-card-head">
-                <h2>Recomendaciones</h2>
-                <p>Acciones sugeridas para la semana.</p>
-              </div>
-              <div id="dashRecs" class="dashboard-recs"></div>
+              <p class="dashboard-overdue-total" id="dashOverdue60Total"></p>
+              <div id="dashOverdue60" class="dashboard-overdue"></div>
             </section>
           </div>
         </main>

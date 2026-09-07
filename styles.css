@@ -862,3 +862,15 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .dashboard-bar { margin-top: 8px; height: 6px; border-radius: 999px; background: #e3e7ea; overflow: hidden; }
 .dashboard-bar span { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
 .dashboard-rec { margin: 0; padding: 10px 12px; border-radius: 8px; background: #fff8e4; border: 1px solid #ebd18b; color: #5f4a1d; font-size: 13px; line-height: 1.5; }
+
+.dashboard-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.dashboard-subhead { margin: 4px 0 -2px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: .03em; }
+.dashboard-overdue-total { margin: 0 0 4px; font-size: 13px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dashboard-overdue { display: flex; flex-direction: column; gap: 12px; max-height: 640px; overflow-y: auto; }
+.dashboard-overdue-group { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.dashboard-overdue-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 12px; background: var(--soft); border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 800; }
+.dashboard-overdue-head strong { font-variant-numeric: tabular-nums; }
+.dashboard-overdue-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 7px 12px; font-size: 12.5px; }
+.dashboard-overdue-row + .dashboard-overdue-row { border-top: 1px solid #eef0f2; }
+.dashboard-overdue-row span { color: var(--muted); }
+.dashboard-overdue-row strong { font-variant-numeric: tabular-nums; }
