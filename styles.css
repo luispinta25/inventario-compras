@@ -812,7 +812,4 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .visit-field select, .visit-field textarea { padding: 10px 12px; border: 2px solid #9ea6ae; border-radius: 6px; background: #fff; font: inherit; font-size: 14px; }
 .visit-field textarea { resize: vertical; }
 .visit-field select:focus, .visit-field textarea:focus { border-color: var(--accent-dark); outline: 2px solid #f4d789; outline-offset: 1px; }
-.visit-preview-label { margin: 4px 0 6px; color: var(--muted); font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: .03em; }
-.visit-preview { margin: 0 0 12px; padding: 12px 14px; max-height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); color: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-.visit-image-preview { display: block; width: 232px; max-width: 100%; aspect-ratio: 1 / 1; margin: 0 0 12px; border: 1px solid var(--line); border-radius: 8px; background: #faf8f2; }
-.visit-image-preview:not([src]) { display: none; }
+.visit-hint { margin: 4px 0 14px; color: var(--muted); font-size: 13px; line-height: 1.5; }

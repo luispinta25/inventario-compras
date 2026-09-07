@@ -453,79 +453,126 @@
     }, 0);
   }
 
+  // Reparte un texto en líneas que caben en maxWidth. Si una sola palabra no
+  // cabe, se parte por caracteres (nunca se desborda).
+  function wrapCanvasText(ctx, text, maxWidth) {
+    const words = String(text).split(/\s+/).filter(Boolean);
+    const lines = [];
+    let current = '';
+    words.forEach((word) => {
+      if (ctx.measureText(word).width > maxWidth) {
+        if (current) { lines.push(current); current = ''; }
+        let chunk = '';
+        for (const ch of word) {
+          if (ctx.measureText(chunk + ch).width <= maxWidth) chunk += ch;
+          else { if (chunk) lines.push(chunk); chunk = ch; }
+        }
+        current = chunk;
+        return;
+      }
+      const next = current ? current + ' ' + word : word;
+      if (ctx.measureText(next).width <= maxWidth) current = next;
+      else { lines.push(current); current = word; }
+    });
+    if (current) lines.push(current);
+    return lines;
+  }
+
+  // Nombre del proveedor: MAYÚSCULAS, hasta `maxLines` líneas. Si no cabe,
+  // reduce el tamaño de letra hasta que quepa (se adapta, no se desborda).
+  function fitProviderLines(ctx, name, family, weight, maxWidth, maxLines) {
+    const capForLines = (n) => (n <= 1 ? 100 : n === 2 ? 90 : 58);
+    const wrapAt = (px) => { ctx.font = `${weight} ${px}px ${family}`; return wrapCanvasText(ctx, name, maxWidth); };
+    let px = 100;
+    let lines = wrapAt(px);
+    while (px > 34 && lines.length > maxLines) { px -= 4; lines = wrapAt(px); }
+    const cap = capForLines(Math.min(lines.length, maxLines));
+    if (px > cap) {
+      px = cap;
+      lines = wrapAt(px);
+      while (px > 34 && lines.length > maxLines) { px -= 4; lines = wrapAt(px); }
+    }
+    return { px, lines: lines.slice(0, maxLines) };
+  }
+
+  // Diseño "ficha de taller": marco fino, RECORDATORIO en bloque y una franja
+  // de color al pie con los días de atraso.
   function buildRecordatorioImage(providerName, items) {
     const S = 1080;
     const canvas = document.createElement('canvas');
     canvas.width = S;
     canvas.height = S;
     const ctx = canvas.getContext('2d');
-    const SERIF = 'Georgia, "Times New Roman", serif';
+    const COND = 'Impact, Haettenschweiler, "Arial Narrow Bold", "Arial Narrow", "Helvetica Neue", sans-serif';
     const SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
-    const pendientes = (items || []).filter((invoice) => Number(invoice.saldo_pendiente) > 0);
+    const INK = '#171410';
+    const MUTED = '#6a6456';
     const dias = maxOverdueDays(items);
     const sev = severityHex(dias);
     const fecha = new Date().toLocaleDateString('es-EC', { day: '2-digit', month: 'short', year: 'numeric' });
-    const L = 96;
 
-    ctx.fillStyle = '#faf8f2';
+    ctx.fillStyle = '#f4f1e9';
     ctx.fillRect(0, 0, S, S);
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = 'left';
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(41, 41, S - 82, S - 82);
+    ctx.fillStyle = '#d4a017';
+    ctx.fillRect(41, 41, S - 82, 12);
 
-    ctx.fillStyle = '#8a8375';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.fillStyle = MUTED;
     setCanvasLS(ctx, 4);
-    ctx.font = `600 24px ${SANS}`;
-    ctx.fillText('FERRISOLUCIONES · MACHACHI', L, 120);
+    ctx.font = `600 26px ${SANS}`;
+    ctx.fillText('FERRISOLUCIONES · MACHACHI', S / 2, 150);
+
+    ctx.fillStyle = INK;
+    setCanvasLS(ctx, 6);
+    fitCanvasFont(ctx, 'RECORDATORIO', COND, '400', 150, S - 160);
+    ctx.fillText('RECORDATORIO', S / 2, 336);
     setCanvasLS(ctx, 0);
-    ctx.strokeStyle = '#d3ccba';
+
+    ctx.strokeStyle = 'rgba(23, 20, 16, .32)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(L, 165);
-    ctx.lineTo(S - L, 165);
+    ctx.moveTo(230, 432);
+    ctx.lineTo(850, 432);
     ctx.stroke();
 
-    ctx.fillStyle = '#221f1b';
-    fitCanvasFont(ctx, 'Recordatorio', SERIF, '700', 132, S - 2 * L);
-    ctx.fillText('Recordatorio', L, 322);
+    // Nombre del proveedor en MAYÚSCULAS, hasta 3 líneas, adaptándose.
+    const nameUpper = String(providerName || 'Proveedor').toUpperCase();
+    const fitted = fitProviderLines(ctx, nameUpper, SANS, '800', S - 180, 3);
+    ctx.fillStyle = INK;
+    ctx.font = `800 ${fitted.px}px ${SANS}`;
+    const lineHeight = fitted.px * 1.08;
+    let ny = 548 - (fitted.lines.length - 1) * lineHeight / 2;
+    fitted.lines.forEach((line) => { ctx.fillText(line, S / 2, ny); ny += lineHeight; });
 
-    ctx.strokeStyle = sev;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(L, 410);
-    ctx.lineTo(L + 330, 410);
-    ctx.stroke();
+    ctx.fillStyle = MUTED;
+    ctx.font = `500 30px ${SANS}`;
+    ctx.fillText('Visita registrada · ' + fecha, S / 2, 704);
 
-    ctx.fillStyle = '#8a8375';
-    setCanvasLS(ctx, 3);
-    ctx.font = `600 22px ${SANS}`;
-    ctx.fillText('PROVEEDOR', L, 486);
-    setCanvasLS(ctx, 0);
-
-    ctx.fillStyle = '#221f1b';
-    const name = String(providerName || 'Proveedor').toUpperCase();
-    fitCanvasFont(ctx, name, SERIF, '700', 82, S - 2 * L);
-    ctx.fillText(name, L, 560);
-
-    ctx.fillStyle = '#6f6a60';
-    ctx.font = `400 30px ${SANS}`;
-    const contexto = !pendientes.length
-      ? 'Sin facturas pendientes.'
-      : dias <= 0
-        ? 'Sin facturas vencidas.'
-        : `Factura más vencida: ${dias} días de atraso.`;
-    ctx.fillText(contexto, L, 654);
-    ctx.fillText('Recordatorio de visita — ' + fecha, L, 702);
-
-    ctx.fillStyle = mixHex(sev, '#000000', 0.16);
-    ctx.fillRect(0, 985, S, 4);
+    // Franja inferior de color.
     ctx.fillStyle = sev;
-    ctx.fillRect(0, 989, S, S - 989);
-    ctx.fillStyle = inkOn(sev);
-    ctx.textAlign = 'center';
+    ctx.fillRect(0, 900, S, 180);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 900);
+    ctx.lineTo(S, 900);
+    ctx.stroke();
+
+    const ink = inkOn(sev);
+    ctx.fillStyle = ink;
+    ctx.textAlign = 'left';
     setCanvasLS(ctx, 2);
-    ctx.font = `600 34px ${SANS}`;
-    ctx.fillText(dias <= 0 ? 'AL DÍA' : dias + ' DÍAS VENCIDO', S / 2, 1035);
+    fitCanvasFont(ctx, dias <= 0 ? 'AL DÍA' : String(dias), COND, '400', 108, 560);
+    ctx.fillText(dias <= 0 ? 'AL DÍA' : String(dias), 70, 992);
     setCanvasLS(ctx, 0);
+    ctx.textAlign = 'right';
+    ctx.font = `600 32px ${SANS}`;
+    ctx.fillText(dias <= 0 ? 'sin facturas vencidas' : 'días · factura más vencida', S - 70, 992);
 
     return canvas.toDataURL('image/png');
   }
@@ -592,30 +639,27 @@
     return lines.join('\n');
   }
 
-  async function renderVisitPreview() {
+  // Carga las facturas pendientes del proveedor elegido (no se previsualiza:
+  // el mensaje y la imagen se arman al enviar).
+  async function loadVisitProvider() {
     const providerId = el('visitProvider').value;
-    const providerName = el('visitProvider').selectedOptions[0]?.textContent || '';
     el('visitError').hidden = true;
     if (!providerId) {
-      el('visitPreview').textContent = 'Selecciona un proveedor para ver el mensaje.';
+      state.visitItems = null;
       el('visitSend').disabled = true;
       return;
     }
     const token = ++state.visitToken;
-    el('visitPreview').textContent = 'Preparando mensaje…';
     el('visitSend').disabled = true;
     try {
       const params = new URLSearchParams({ estado: 'pendientes', proveedor_id: providerId });
       const response = await window.app.posApiRequest(`${API}?${params.toString()}`, { method: 'GET' });
       if (token !== state.visitToken) return;
-      const items = Array.isArray(response?.data?.items) ? response.data.items : [];
-      state.visitItems = items;
-      el('visitPreview').textContent = buildVisitMessage(providerName, items, el('visitMotivo').value);
-      el('visitImagePreview').src = buildRecordatorioImage(providerName, items);
+      state.visitItems = Array.isArray(response?.data?.items) ? response.data.items : [];
       el('visitSend').disabled = false;
     } catch (error) {
       if (token !== state.visitToken) return;
-      el('visitPreview').textContent = 'Selecciona un proveedor para ver el mensaje.';
+      state.visitItems = null;
       el('visitError').textContent = error?.message || 'No fue posible cargar las facturas del proveedor.';
       el('visitError').hidden = false;
     }
@@ -626,8 +670,7 @@
     el('visitProvider').value = '';
     el('visitMotivo').value = '';
     el('visitError').hidden = true;
-    el('visitPreview').textContent = 'Selecciona un proveedor para ver el mensaje.';
-    el('visitImagePreview').removeAttribute('src');
+    state.visitItems = null;
     el('visitSend').disabled = true;
     el('visitModal').hidden = false;
   }
@@ -639,8 +682,8 @@
 
   async function sendVisitNotification() {
     const providerName = el('visitProvider').selectedOptions[0]?.textContent || '';
-    if (!providerName) return;
-    const items = state.visitItems || [];
+    if (!providerName || !Array.isArray(state.visitItems)) return;
+    const items = state.visitItems;
     const message = buildVisitMessage(providerName, items, el('visitMotivo').value);
 
     const confirmed = await window.app.askConfirm(
@@ -656,7 +699,7 @@
     try {
       let confirmedByGroup = false;
       try {
-        // El recordatorio va como imagen (membrete) con el texto de leyenda.
+        // El recordatorio va como imagen con el texto de leyenda.
         const dataUrl = buildRecordatorioImage(providerName, items);
         const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
         const response = await window.app.posApiRequest(WHATSAPP_MEDIA_API, {
@@ -732,16 +775,7 @@
     el('visitModalClose').addEventListener('click', closeVisitModal);
     el('visitModalOverlay').addEventListener('click', closeVisitModal);
     el('visitCancel').addEventListener('click', closeVisitModal);
-    el('visitProvider').addEventListener('change', renderVisitPreview);
-    el('visitMotivo').addEventListener('input', () => {
-      if (el('visitProvider').value && !el('visitSend').disabled) {
-        el('visitPreview').textContent = buildVisitMessage(
-          el('visitProvider').selectedOptions[0]?.textContent || '',
-          state.visitItems || [],
-          el('visitMotivo').value
-        );
-      }
-    });
+    el('visitProvider').addEventListener('change', loadVisitProvider);
     el('visitSend').addEventListener('click', sendVisitNotification);
     document.querySelectorAll('#invoiceModal .invoice-tab').forEach((tab) => {
       tab.addEventListener('click', () => setTab(tab.dataset.invTab));
