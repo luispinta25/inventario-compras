@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260906.11';
+const APP_BUILD = '20260906.12';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -478,6 +478,7 @@ function moduleFromHash() {
   return {
     '#ingreso-facturas': 'invoice-import',
     '#facturas': 'provider-invoices',
+    '#dashboard': 'provider-dashboard',
     '#comparador': 'comparator',
     '#producto-proveedores': 'product-providers',
     '#pendientes': 'pending-documents',
@@ -700,6 +701,26 @@ function loadInvoicesModule() {
   return invoicesModuleRequest;
 }
 
+let dashboardModuleRequest = null;
+
+function loadDashboardModule() {
+  if (typeof window.initDashboardProveedores === 'function') return Promise.resolve();
+  if (dashboardModuleRequest) return dashboardModuleRequest;
+  dashboardModuleRequest = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `js/dashboard.js?v=${APP_BUILD}`;
+    script.dataset.module = 'dashboard';
+    script.onload = () => resolve();
+    script.onerror = () => {
+      dashboardModuleRequest = null;
+      script.remove();
+      reject(new Error('No se pudo cargar el dashboard de proveedores.'));
+    };
+    document.body.appendChild(script);
+  });
+  return dashboardModuleRequest;
+}
+
 // El rol viene de ferre_usuarios_ferreteria.rol; el POS trata "admin" y
 // "administrador" como acceso total.
 function isAdminUser() {
@@ -716,7 +737,6 @@ async function switchAppModule(moduleName) {
     history.replaceState(null, '', '#ingreso-facturas');
   }
   const providerModes = {
-    'provider-dashboard': 'dashboard',
     'provider-entry': 'productos'
   };
   const providerMode = providerModes[moduleName];
@@ -746,6 +766,9 @@ async function switchAppModule(moduleName) {
   } else if (moduleName === 'provider-invoices') {
     await loadInvoicesModule();
     await window.initFacturas();
+  } else if (moduleName === 'provider-dashboard') {
+    await loadDashboardModule();
+    await window.initDashboardProveedores();
   } else if (moduleName === 'pending-documents') {
     await loadPendingDocuments();
   } else if (moduleName === 'mobile-capture') {

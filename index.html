@@ -81,7 +81,7 @@
           <span>Pendientes</span>
           <strong class="nav-count" id="pendingDocumentsBadge">0</strong>
         </a>
-        <a href="#dashboard" class="module-nav-item" data-app-module="provider-dashboard" title="Dashboard de proveedores" hidden>
+        <a href="#dashboard" class="module-nav-item" data-app-module="provider-dashboard" title="Dashboard de proveedores">
           <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
           <span>Dashboard</span>
         </a>
@@ -703,6 +703,83 @@
           </div>
         </section>
       </div>
+
+      <section class="module-panel dashboard-panel" data-module-panel="provider-dashboard" hidden aria-labelledby="dashTitle">
+        <header class="app-header">
+          <div>
+            <p class="product-name">CUENTAS POR PAGAR</p>
+            <h1 id="dashTitle">Dashboard de proveedores</h1>
+          </div>
+          <div class="dashboard-controls">
+            <label class="invoices-field">
+              <span>Año</span>
+              <select id="dashYear" class="form-select"></select>
+            </label>
+            <button type="button" class="button button-secondary" id="dashRefresh">
+              <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+              Actualizar
+            </button>
+          </div>
+        </header>
+
+        <main class="dashboard-workspace">
+          <p class="invoices-summary" id="dashSummary" aria-live="polite">Cargando dashboard…</p>
+          <div class="dashboard-kpis" id="dashKpis"></div>
+
+          <div class="dashboard-grid">
+            <section class="dashboard-card dashboard-card-wide">
+              <div class="dashboard-card-head">
+                <h2>Proveedores a priorizar</h2>
+                <p>Ordenado por saldo vencido, atraso y facturas abiertas.</p>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Proveedor</th><th>Prioridad</th>
+                      <th class="number">Saldo</th><th class="number">Vencido</th>
+                      <th class="number">Máx. atraso</th><th class="number">Ventas año</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dashPriorityBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="dashboard-card">
+              <div class="dashboard-card-head">
+                <h2>Vencimientos</h2>
+                <p>Semáforo por antigüedad del saldo pendiente.</p>
+              </div>
+              <div id="dashBuckets" class="dashboard-buckets"></div>
+            </section>
+
+            <section class="dashboard-card">
+              <div class="dashboard-card-head">
+                <h2>Esta semana</h2>
+                <p>Facturas que vencen pronto o con atraso alto.</p>
+              </div>
+              <div id="dashWeek" class="dashboard-list"></div>
+            </section>
+
+            <section class="dashboard-card dashboard-card-wide">
+              <div class="dashboard-card-head">
+                <h2>Ventas asociadas por proveedor</h2>
+                <p>Calculado con el proveedor actual del producto en inventario.</p>
+              </div>
+              <div id="dashSales" class="dashboard-list"></div>
+            </section>
+
+            <section class="dashboard-card">
+              <div class="dashboard-card-head">
+                <h2>Recomendaciones</h2>
+                <p>Acciones sugeridas para la semana.</p>
+              </div>
+              <div id="dashRecs" class="dashboard-recs"></div>
+            </section>
+          </div>
+        </main>
+      </section>
 
       <section class="module-panel pending-documents-panel" data-module-panel="pending-documents" hidden aria-labelledby="pendingDocumentsTitle">
         <header class="app-header">

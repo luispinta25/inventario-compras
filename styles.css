@@ -813,3 +813,52 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .visit-field textarea { resize: vertical; }
 .visit-field select:focus, .visit-field textarea:focus { border-color: var(--accent-dark); outline: 2px solid #f4d789; outline-offset: 1px; }
 .visit-hint { margin: 4px 0 14px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+/* ============ Dashboard de proveedores ============ */
+.dashboard-panel .app-header { flex-wrap: wrap; gap: 16px; }
+.dashboard-controls { display: flex; align-items: flex-end; gap: 12px; }
+.dashboard-controls .form-select { height: 42px; min-width: 110px; padding: 0 12px; border: 2px solid #9ea6ae; border-radius: 6px; background: #fff; font: inherit; font-size: 14px; }
+.dashboard-controls .form-select:focus { border-color: var(--accent-dark); outline: 2px solid #f4d789; outline-offset: 1px; }
+.dashboard-controls .button { min-height: 42px; }
+.dashboard-workspace { padding: clamp(16px, 2.4vw, 28px); }
+
+.dashboard-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 6px 0 20px; }
+.dashboard-kpi { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--line); border-left: 4px solid var(--ink); border-radius: 8px; background: var(--surface); }
+.dashboard-kpi.is-danger { border-left-color: var(--red); }
+.dashboard-kpi.is-warn { border-left-color: var(--accent); }
+.dashboard-kpi.is-ok { border-left-color: var(--green); }
+.dashboard-kpi-label { color: var(--muted); font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: .03em; }
+.dashboard-kpi-value { font-size: 22px; font-variant-numeric: tabular-nums; }
+.dashboard-kpi-note { color: var(--muted); font-size: 12px; }
+
+.dashboard-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.dashboard-card { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.dashboard-card-wide { grid-column: 1 / -1; }
+.dashboard-card-head h2 { margin: 0; font-size: 16px; }
+.dashboard-card-head p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; }
+@media (max-width: 900px) { .dashboard-grid { grid-template-columns: 1fr; } }
+
+.dashboard-panel table { width: 100%; border-collapse: collapse; }
+.dashboard-panel th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--line); color: var(--muted); font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: .03em; }
+.dashboard-panel th.number, .dashboard-panel td.number { text-align: right; font-variant-numeric: tabular-nums; }
+.dashboard-panel td { padding: 9px 10px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: top; }
+.dashboard-panel td small { color: var(--muted); font-size: 11.5px; }
+.dashboard-empty { padding: 18px 4px; color: var(--muted); text-align: center; }
+
+.dashboard-pill { display: inline-flex; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: .02em; background: #eef1f4; color: #55606b; }
+.dashboard-pill.is-al-dia { background: var(--green-soft); color: var(--green); }
+.dashboard-pill.is-seguimiento { background: var(--blue-soft); color: var(--blue); }
+.dashboard-pill.is-atencion { background: #fff6db; color: #805500; }
+.dashboard-pill.is-alta { background: #ffe9d6; color: #9a4218; }
+.dashboard-pill.is-critica { background: var(--red-soft); color: var(--red); }
+.dashboard-pill.is-riesgo { background: #4a0f0c; color: #ffd7d2; }
+
+.dashboard-buckets, .dashboard-list, .dashboard-recs { display: flex; flex-direction: column; gap: 10px; }
+.dashboard-bucket, .dashboard-list-row { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
+.dashboard-bucket { border-left: 4px solid var(--bucket-color, var(--ink)); }
+.dashboard-list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13px; }
+.dashboard-list-head strong { font-variant-numeric: tabular-nums; }
+.dashboard-list-sub { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.dashboard-bar { margin-top: 8px; height: 6px; border-radius: 999px; background: #e3e7ea; overflow: hidden; }
+.dashboard-bar span { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+.dashboard-rec { margin: 0; padding: 10px 12px; border-radius: 8px; background: #fff8e4; border: 1px solid #ebd18b; color: #5f4a1d; font-size: 13px; line-height: 1.5; }

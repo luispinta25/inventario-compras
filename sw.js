@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'ferrisoluciones-inventario-0.2.0-20260906.11';
+const CACHE_NAME = 'ferrisoluciones-inventario-0.2.0-20260906.12';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -9,6 +9,7 @@ const APP_SHELL = [
   '/app.js',
   '/js/comparador.js',
   '/js/facturas.js',
+  '/js/dashboard.js',
   '/js/ocr-clave.js',
   '/version.json',
   '/manifest.webmanifest',
