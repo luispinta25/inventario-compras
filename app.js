@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260906.14';
+const APP_BUILD = '20260906.15';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -527,7 +527,10 @@ async function showApplication(session, profile) {
   elements.appShell.hidden = false;
   document.body.classList.toggle('mobile-capture-only', IS_MOBILE_DEVICE);
   if (IS_MOBILE_DEVICE) history.replaceState(null, '', '#cargar-factura');
-  if (!IS_MOBILE_DEVICE) preloadInternalProductCatalog();
+  if (!IS_MOBILE_DEVICE) {
+    preloadInternalProductCatalog();
+    preloadSecondaryModules();
+  }
   const restoreManualEntry = hasRestorableManualInvoice();
   if (restoreManualEntry) {
     currentPendingDocumentId = readLocalCache(INVOICE_FLOW_CACHE_KEY)?.pendingDocumentId || null;
@@ -719,6 +722,22 @@ function loadDashboardModule() {
     document.body.appendChild(script);
   });
   return dashboardModuleRequest;
+}
+
+// Al iniciar sesión (solo PC) se cargan en segundo plano Facturas y Dashboard
+// para que estén listos al entrar. No se espera: si falla, cada módulo se
+// carga igual al abrirlo.
+let secondaryModulesPreloaded = false;
+
+function preloadSecondaryModules() {
+  if (secondaryModulesPreloaded) return;
+  secondaryModulesPreloaded = true;
+  loadInvoicesModule()
+    .then(() => window.initFacturas())
+    .catch((error) => console.warn('[inventario-compras] precarga de Facturas:', error?.message || error));
+  loadDashboardModule()
+    .then(() => window.initDashboardProveedores())
+    .catch((error) => console.warn('[inventario-compras] precarga de Dashboard:', error?.message || error));
 }
 
 // El rol viene de ferre_usuarios_ferreteria.rol; el POS trata "admin" y

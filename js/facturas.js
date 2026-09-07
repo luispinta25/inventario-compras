@@ -66,7 +66,8 @@
     state.loading = true;
     const grid = el('invoicesGrid');
     const summary = el('invoicesSummary');
-    summary.textContent = 'Cargando facturas…';
+    // Si ya hay contenido (precargado o recarga), se refresca sin parpadeo.
+    if (!state.items.length) summary.textContent = 'Cargando facturas…';
     try {
       const proveedor = el('invProveedorFilter').value;
       const estado = el('invEstadoFilter').value;

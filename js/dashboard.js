@@ -316,7 +316,8 @@
     if (state.loading) return;
     state.loading = true;
     const summary = el('dashSummary');
-    summary.textContent = 'Calculando dashboard…';
+    // Si ya hay datos (precargado o recarga), se refresca sin parpadeo.
+    if (!state.data) summary.textContent = 'Calculando dashboard…';
     el('dashRefresh').disabled = true;
     try {
       const year = el('dashYear').value;
