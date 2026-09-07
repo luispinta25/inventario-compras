@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260906.10';
+const APP_BUILD = '20260906.11';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -519,6 +519,8 @@ async function showApplication(session, profile) {
   elements.userName.textContent = profileName(profile);
   elements.userRole.textContent = profile.rol || 'usuario';
   elements.userInitials.textContent = profileInitials(profile);
+  const productProvidersNav = document.querySelector('[data-app-module="product-providers"]');
+  if (productProvidersNav) productProvidersNav.hidden = !isAdminUser();
   elements.sessionLoader.hidden = true;
   elements.authScreen.hidden = true;
   elements.appShell.hidden = false;
@@ -698,10 +700,20 @@ function loadInvoicesModule() {
   return invoicesModuleRequest;
 }
 
+// El rol viene de ferre_usuarios_ferreteria.rol; el POS trata "admin" y
+// "administrador" como acceso total.
+function isAdminUser() {
+  return String(currentProfile?.rol || '').trim().toLowerCase().includes('admin');
+}
+
 async function switchAppModule(moduleName) {
   if (IS_MOBILE_DEVICE && moduleName !== 'mobile-capture') {
     moduleName = 'mobile-capture';
     history.replaceState(null, '', '#cargar-factura');
+  }
+  if (moduleName === 'product-providers' && !isAdminUser()) {
+    moduleName = 'invoice-import';
+    history.replaceState(null, '', '#ingreso-facturas');
   }
   const providerModes = {
     'provider-dashboard': 'dashboard',
