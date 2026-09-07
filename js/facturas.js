@@ -7,6 +7,7 @@
 (function () {
   const API = '/api/purchases/v2/invoices';
   const WHATSAPP_API = '/api/whatsapp/send-text';
+  const WHATSAPP_MEDIA_API = '/api/whatsapp/send-media';
   const PAYMENT_IVA = 1.15;
 
   const VISIT_BUCKET_TITLES = [
@@ -396,6 +397,139 @@
     if ([...select.options].some((option) => option.value === current)) select.value = current;
   }
 
+  // ---- Imagen "Recordatorio" (diseño membrete) para adjuntar al aviso ------
+  // Cuadrada (1:1), PNG en base64. Verde si no hay facturas o ninguna vencida;
+  // de limón a rubí oscuro según los días de la factura más vencida.
+  // Rubí oscuro (tope de la escala) a partir de 80 días de atraso.
+  const RECORDATORIO_RAMP = [
+    [0, '#1f7a3d'], [1, '#86b81b'], [12, '#b9c400'], [22, '#e8c400'],
+    [35, '#f0951f'], [50, '#e5482b'], [65, '#c01526'], [80, '#6b0a17']
+  ];
+  const RECORDATORIO_MAX_DIAS = 80;
+  const hexToRgb = (h) => { h = h.replace('#', ''); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; };
+  const rgbToHex = (a) => '#' + a.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+  function severityHex(d) {
+    d = Math.max(0, Math.min(RECORDATORIO_MAX_DIAS, Number(d) || 0));
+    if (d <= 0) return RECORDATORIO_RAMP[0][1];
+    for (let i = 0; i < RECORDATORIO_RAMP.length - 1; i += 1) {
+      const [d0, c0] = RECORDATORIO_RAMP[i];
+      const [d1, c1] = RECORDATORIO_RAMP[i + 1];
+      if (d >= d0 && d <= d1) {
+        const t = (d - d0) / (d1 - d0);
+        const a = hexToRgb(c0);
+        const b = hexToRgb(c1);
+        return rgbToHex([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]);
+      }
+    }
+    return RECORDATORIO_RAMP[RECORDATORIO_RAMP.length - 1][1];
+  }
+  function mixHex(hex, other, t) {
+    const a = hexToRgb(hex);
+    const b = hexToRgb(other);
+    return rgbToHex([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]);
+  }
+  function inkOn(hex) {
+    const [r, g, b] = hexToRgb(hex).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) < 0.45 ? '#ffffff' : '#171410';
+  }
+  function fitCanvasFont(ctx, text, family, weight, maxPx, maxWidth) {
+    let px = maxPx;
+    while (px > 22) {
+      ctx.font = `${weight} ${px}px ${family}`;
+      if (ctx.measureText(text).width <= maxWidth) break;
+      px -= 2;
+    }
+    ctx.font = `${weight} ${px}px ${family}`;
+  }
+  function setCanvasLS(ctx, px) { try { ctx.letterSpacing = px + 'px'; } catch (e) { /* navegador sin soporte */ } }
+
+  // Días de atraso de la factura más vencida (0 si no hay ninguna vencida).
+  function maxOverdueDays(items) {
+    return (items || []).reduce((max, invoice) => {
+      if (Number(invoice.saldo_pendiente) > 0 && invoice.dias_vencimiento != null && invoice.dias_vencimiento < 0) {
+        return Math.max(max, -invoice.dias_vencimiento);
+      }
+      return max;
+    }, 0);
+  }
+
+  function buildRecordatorioImage(providerName, items) {
+    const S = 1080;
+    const canvas = document.createElement('canvas');
+    canvas.width = S;
+    canvas.height = S;
+    const ctx = canvas.getContext('2d');
+    const SERIF = 'Georgia, "Times New Roman", serif';
+    const SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+    const pendientes = (items || []).filter((invoice) => Number(invoice.saldo_pendiente) > 0);
+    const dias = maxOverdueDays(items);
+    const sev = severityHex(dias);
+    const fecha = new Date().toLocaleDateString('es-EC', { day: '2-digit', month: 'short', year: 'numeric' });
+    const L = 96;
+
+    ctx.fillStyle = '#faf8f2';
+    ctx.fillRect(0, 0, S, S);
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+
+    ctx.fillStyle = '#8a8375';
+    setCanvasLS(ctx, 4);
+    ctx.font = `600 24px ${SANS}`;
+    ctx.fillText('FERRISOLUCIONES · MACHACHI', L, 120);
+    setCanvasLS(ctx, 0);
+    ctx.strokeStyle = '#d3ccba';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(L, 165);
+    ctx.lineTo(S - L, 165);
+    ctx.stroke();
+
+    ctx.fillStyle = '#221f1b';
+    fitCanvasFont(ctx, 'Recordatorio', SERIF, '700', 132, S - 2 * L);
+    ctx.fillText('Recordatorio', L, 322);
+
+    ctx.strokeStyle = sev;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(L, 410);
+    ctx.lineTo(L + 330, 410);
+    ctx.stroke();
+
+    ctx.fillStyle = '#8a8375';
+    setCanvasLS(ctx, 3);
+    ctx.font = `600 22px ${SANS}`;
+    ctx.fillText('PROVEEDOR', L, 486);
+    setCanvasLS(ctx, 0);
+
+    ctx.fillStyle = '#221f1b';
+    const name = String(providerName || 'Proveedor').toUpperCase();
+    fitCanvasFont(ctx, name, SERIF, '700', 82, S - 2 * L);
+    ctx.fillText(name, L, 560);
+
+    ctx.fillStyle = '#6f6a60';
+    ctx.font = `400 30px ${SANS}`;
+    const contexto = !pendientes.length
+      ? 'Sin facturas pendientes.'
+      : dias <= 0
+        ? 'Sin facturas vencidas.'
+        : `Factura más vencida: ${dias} días de atraso.`;
+    ctx.fillText(contexto, L, 654);
+    ctx.fillText('Recordatorio de visita — ' + fecha, L, 702);
+
+    ctx.fillStyle = mixHex(sev, '#000000', 0.16);
+    ctx.fillRect(0, 985, S, 4);
+    ctx.fillStyle = sev;
+    ctx.fillRect(0, 989, S, S - 989);
+    ctx.fillStyle = inkOn(sev);
+    ctx.textAlign = 'center';
+    setCanvasLS(ctx, 2);
+    ctx.font = `600 34px ${SANS}`;
+    ctx.fillText(dias <= 0 ? 'AL DÍA' : dias + ' DÍAS VENCIDO', S / 2, 1035);
+    setCanvasLS(ctx, 0);
+
+    return canvas.toDataURL('image/png');
+  }
+
   // "011-002-000142353" -> "#142353" (el prefijo estab-emisión y los ceros del
   // secuencial son solo referencia).
   function shortInvoiceNumber(numero) {
@@ -477,6 +611,7 @@
       const items = Array.isArray(response?.data?.items) ? response.data.items : [];
       state.visitItems = items;
       el('visitPreview').textContent = buildVisitMessage(providerName, items, el('visitMotivo').value);
+      el('visitImagePreview').src = buildRecordatorioImage(providerName, items);
       el('visitSend').disabled = false;
     } catch (error) {
       if (token !== state.visitToken) return;
@@ -492,6 +627,7 @@
     el('visitMotivo').value = '';
     el('visitError').hidden = true;
     el('visitPreview').textContent = 'Selecciona un proveedor para ver el mensaje.';
+    el('visitImagePreview').removeAttribute('src');
     el('visitSend').disabled = true;
     el('visitModal').hidden = false;
   }
@@ -504,7 +640,8 @@
   async function sendVisitNotification() {
     const providerName = el('visitProvider').selectedOptions[0]?.textContent || '';
     if (!providerName) return;
-    const message = buildVisitMessage(providerName, state.visitItems || [], el('visitMotivo').value);
+    const items = state.visitItems || [];
+    const message = buildVisitMessage(providerName, items, el('visitMotivo').value);
 
     const confirmed = await window.app.askConfirm(
       `Enviar al grupo de WhatsApp el aviso de visita de ${providerName}?`,
@@ -517,12 +654,36 @@
     send.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Enviando';
     el('visitError').hidden = true;
     try {
-      const response = await window.app.posApiRequest(WHATSAPP_API, {
-        method: 'POST',
-        body: JSON.stringify({ text: message, delay: 1000, linkPreview: false })
-      });
-      const data = response?.data || response;
-      if (!data?.key?.id) throw new Error('El grupo no confirmó la recepción del mensaje.');
+      let confirmedByGroup = false;
+      try {
+        // El recordatorio va como imagen (membrete) con el texto de leyenda.
+        const dataUrl = buildRecordatorioImage(providerName, items);
+        const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+        const response = await window.app.posApiRequest(WHATSAPP_MEDIA_API, {
+          method: 'POST',
+          body: JSON.stringify({
+            media: {
+              mediatype: 'image',
+              mimetype: 'image/png',
+              media: base64,
+              fileName: 'recordatorio.png',
+              caption: message,
+              delay: 1000
+            }
+          })
+        });
+        const data = response?.data || response;
+        confirmedByGroup = Boolean(data?.key?.id);
+      } catch (imageError) {
+        // Si la imagen falla, al menos se envía el texto.
+        const response = await window.app.posApiRequest(WHATSAPP_API, {
+          method: 'POST',
+          body: JSON.stringify({ text: message, delay: 1000, linkPreview: false })
+        });
+        const data = response?.data || response;
+        confirmedByGroup = Boolean(data?.key?.id);
+      }
+      if (!confirmedByGroup) throw new Error('El grupo no confirmó la recepción del mensaje.');
       closeVisitModal();
       await window.app.askAlert(`Aviso de visita de ${providerName} enviado al grupo.`);
     } catch (error) {
