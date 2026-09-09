@@ -292,6 +292,14 @@
         if (index === 1 || index === 4) td.className = 'number';
         tr.appendChild(td);
       });
+      const accion = document.createElement('td');
+      const resend = document.createElement('button');
+      resend.type = 'button';
+      resend.className = 'invoice-resend-btn';
+      resend.innerHTML = '<i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Reenviar';
+      resend.addEventListener('click', () => resendMovimiento(pago));
+      accion.appendChild(resend);
+      tr.appendChild(accion);
       body.appendChild(tr);
     });
   }
@@ -392,15 +400,18 @@
     );
     if (!confirmed) return;
 
+    const saldoAntes = Number(invoice.saldo_pendiente) || 0;
     const submit = el('invPagoSubmit');
     submit.disabled = true;
     submit.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Registrando';
+    let pagoData = null;
     try {
       const response = await window.app.posApiRequest(`${API}/${encodeURIComponent(invoice.id)}/pagos`, {
         method: 'POST',
         body: JSON.stringify(parsed)
       });
       const data = response?.data || {};
+      pagoData = data;
       if (data.invoice) {
         state.current.invoice = data.invoice;
       }
@@ -416,6 +427,14 @@
     } finally {
       submit.disabled = false;
       submit.innerHTML = '<i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Registrar pago';
+    }
+    // El aviso al grupo es obligatorio; si falla no invalida el pago ya registrado.
+    if (pagoData?.pago) {
+      try {
+        await sendPaymentNotification(state.current.invoice, pagoData.pago, saldoAntes);
+      } catch (avisoError) {
+        await window.app.askAlert('El pago se registró, pero el aviso al grupo falló. Usa "Reenviar" en el historial.');
+      }
     }
   }
 
@@ -436,7 +455,6 @@
     el('invNcError').hidden = true;
     el('invNcSaldo').textContent = money(invoice.saldo_pendiente);
     el('invNcAuto').checked = true;
-    el('invNcNotificar').checked = true;
     el('invNcNumero').value = '';
     el('invNcMotivo').value = '';
     const valor = el('invNcValor');
@@ -558,7 +576,7 @@
     if (!Number.isFinite(valor) || valor <= 0) return { error: 'El valor de la nota de crédito no es válido.' };
     if (valor > saldo + 0.01) return { error: `El valor no puede superar el saldo pendiente (${money(saldo)}).` };
     valor = Math.min(valor, saldo);
-    return { auto, valor, motivo, numero, productos, notificar: el('invNcNotificar').checked };
+    return { auto, valor, motivo, numero, productos };
   }
 
   // Imagen (1:1, PNG base64) con el detalle de la NC, para el aviso al grupo.
@@ -697,17 +715,17 @@
     return lines.join('\n');
   }
 
-  async function sendCreditNoteNotification(invoice, nc, productos, saldoAntes) {
-    const message = buildCreditNoteMessage(invoice, nc, productos, saldoAntes);
+  // Envía una imagen (o solo texto si la imagen falla) al grupo de WhatsApp.
+  async function sendGroupImage(fileName, message, dataUrlFactory) {
     try {
-      const dataUrl = buildCreditNoteImage(invoice, nc, productos, saldoAntes);
+      const dataUrl = dataUrlFactory();
       const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
       await window.app.posApiRequest(WHATSAPP_MEDIA_API, {
         method: 'POST',
         body: JSON.stringify({
           media: {
             mediatype: 'image', mimetype: 'image/png', media: base64,
-            fileName: 'nota-credito.png', caption: message, delay: 1000
+            fileName, caption: message, delay: 1000
           }
         })
       });
@@ -716,6 +734,171 @@
         method: 'POST',
         body: JSON.stringify({ text: message, delay: 1000, linkPreview: false })
       });
+    }
+  }
+
+  async function sendCreditNoteNotification(invoice, nc, productos, saldoAntes) {
+    await sendGroupImage(
+      'nota-credito.png',
+      buildCreditNoteMessage(invoice, nc, productos, saldoAntes),
+      () => buildCreditNoteImage(invoice, nc, productos, saldoAntes)
+    );
+  }
+
+  // ---- Aviso de pago a proveedor -----------------------------------------
+  function buildPaymentImage(invoice, pago, saldoAntes) {
+    const S = 1080;
+    const canvas = document.createElement('canvas');
+    canvas.width = S;
+    canvas.height = S;
+    const ctx = canvas.getContext('2d');
+    const COND = 'Impact, Haettenschweiler, "Arial Narrow Bold", "Arial Narrow", "Helvetica Neue", sans-serif';
+    const SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+    const INK = '#171410';
+    const MUTED = '#6a6456';
+    const ACCENT = '#2f6f8f';
+    const fecha = new Date().toLocaleDateString('es-EC', { day: '2-digit', month: 'short', year: 'numeric' });
+    const saldoNuevo = Number.isFinite(Number(pago.saldo_nuevo)) ? Number(pago.saldo_nuevo) : Number(invoice.saldo_pendiente) || 0;
+    const saldoPrevio = Number.isFinite(Number(saldoAntes)) ? Number(saldoAntes) : saldoNuevo + Number(pago.monto_pago || 0);
+
+    ctx.fillStyle = '#f4f1e9';
+    ctx.fillRect(0, 0, S, S);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(41, 41, S - 82, S - 82);
+    ctx.fillStyle = '#d4a017';
+    ctx.fillRect(41, 41, S - 82, 12);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = MUTED;
+    setCanvasLS(ctx, 4);
+    ctx.font = `600 26px ${SANS}`;
+    ctx.fillText('FERRISOLUCIONES · MACHACHI', S / 2, 132);
+
+    ctx.fillStyle = INK;
+    setCanvasLS(ctx, 5);
+    fitCanvasFont(ctx, 'PAGO A PROVEEDOR', COND, '400', 116, S - 160);
+    ctx.fillText('PAGO A PROVEEDOR', S / 2, 250);
+    setCanvasLS(ctx, 0);
+
+    ctx.strokeStyle = 'rgba(23, 20, 16, .32)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(180, 322);
+    ctx.lineTo(S - 180, 322);
+    ctx.stroke();
+
+    const proveedor = String(invoice.proveedor_empresa || 'Proveedor').toUpperCase();
+    const fitted = fitProviderLines(ctx, proveedor, SANS, '800', S - 200, 2);
+    ctx.fillStyle = INK;
+    ctx.font = `800 ${fitted.px}px ${SANS}`;
+    let ny = 400 - (fitted.lines.length - 1) * fitted.px * 0.55;
+    fitted.lines.forEach((line) => { ctx.fillText(line, S / 2, ny); ny += fitted.px * 1.08; });
+
+    ctx.fillStyle = MUTED;
+    ctx.font = `600 30px ${SANS}`;
+    ctx.fillText(`Factura ${invoice.numero_factura || '-'}`, S / 2, Math.max(ny + 18, 470));
+
+    ctx.fillStyle = ACCENT;
+    setCanvasLS(ctx, 1);
+    fitCanvasFont(ctx, money(pago.monto_pago), COND, '400', 150, S - 220);
+    ctx.fillText(money(pago.monto_pago), S / 2, 590);
+    setCanvasLS(ctx, 0);
+
+    ctx.fillStyle = INK;
+    ctx.font = `500 27px ${SANS}`;
+    const metodo = `${pago.metodo_pago || '-'}${pago.tipo_pago ? ` · ${pago.tipo_pago}` : ''}`;
+    ctx.fillText(metodo, S / 2, 678);
+    if (pago.referencia_pago) {
+      ctx.fillStyle = MUTED;
+      ctx.font = `500 24px ${SANS}`;
+      ctx.fillText(`Ref.: ${pago.referencia_pago}`, S / 2, 716);
+    }
+
+    ctx.fillStyle = MUTED;
+    ctx.font = `500 22px ${SANS}`;
+    ctx.fillText(`Registrado · ${fecha}`, S / 2, 858);
+
+    ctx.fillStyle = ACCENT;
+    ctx.fillRect(0, 900, S, 180);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 900);
+    ctx.lineTo(S, 900);
+    ctx.stroke();
+    const ink = inkOn(ACCENT);
+    ctx.fillStyle = ink;
+    ctx.textAlign = 'left';
+    setCanvasLS(ctx, 3);
+    ctx.font = `700 20px ${SANS}`;
+    ctx.fillText('SALDO ANTERIOR', 70, 952);
+    ctx.fillText('SALDO NUEVO', 70, 1040);
+    setCanvasLS(ctx, 0);
+    ctx.textAlign = 'right';
+    ctx.font = `600 40px ${COND}`;
+    ctx.fillText(money(saldoPrevio), S - 70, 952);
+    setCanvasLS(ctx, 1);
+    fitCanvasFont(ctx, money(saldoNuevo), COND, '400', 72, 420);
+    ctx.fillText(money(saldoNuevo), S - 70, 1042);
+    setCanvasLS(ctx, 0);
+
+    return canvas.toDataURL('image/png');
+  }
+
+  function buildPaymentMessage(invoice, pago, saldoAntes) {
+    const saldoNuevo = Number.isFinite(Number(pago.saldo_nuevo)) ? Number(pago.saldo_nuevo) : Number(invoice.saldo_pendiente) || 0;
+    const saldoPrevio = Number.isFinite(Number(saldoAntes)) ? Number(saldoAntes) : saldoNuevo + Number(pago.monto_pago || 0);
+    const lines = [
+      '*PAGO A PROVEEDOR*',
+      '',
+      `Proveedor: *${invoice.proveedor_empresa || '-'}*`,
+      `Factura: *${invoice.numero_factura || '-'}*`,
+      `Monto: *${money(pago.monto_pago)}*`,
+      `Método: ${pago.metodo_pago || '-'}${pago.tipo_pago ? ` · ${pago.tipo_pago}` : ''}`
+    ];
+    if (pago.referencia_pago) lines.push(`Referencia: ${pago.referencia_pago}`);
+    lines.push(`Saldo anterior: ${money(saldoPrevio)}`, `Saldo nuevo: *${money(saldoNuevo)}*`);
+    if (pago.notas) lines.push('', `Notas: ${pago.notas}`);
+    return lines.join('\n');
+  }
+
+  async function sendPaymentNotification(invoice, pago, saldoAntes) {
+    await sendGroupImage(
+      'pago-proveedor.png',
+      buildPaymentMessage(invoice, pago, saldoAntes),
+      () => buildPaymentImage(invoice, pago, saldoAntes)
+    );
+  }
+
+  // Reenvía al grupo el aviso de un movimiento ya registrado (desde Historial).
+  async function resendMovimiento(pago) {
+    const invoice = state.current?.invoice;
+    if (!invoice || !pago) return;
+    const esNc = String(pago.metodo_pago || '').toUpperCase() === 'NOTA_CREDITO';
+    const saldoAntes = Math.round(((Number(pago.saldo_nuevo) || 0) + (Number(pago.monto_pago) || 0)) * 100) / 100;
+    const confirmed = await window.app.askConfirm(
+      `Reenviar al grupo el aviso de ${esNc ? 'la nota de crédito' : 'este pago'} de ${money(pago.monto_pago)}?`,
+      { confirmText: 'Reenviar al grupo' }
+    );
+    if (!confirmed) return;
+    try {
+      if (esNc) {
+        const nc = (state.current?.notas_credito || []).find((item) => item.pago_id === pago.id)
+          || {
+            valor: pago.monto_pago,
+            motivo: pago.notas || 'Nota de crédito',
+            numero: String(pago.referencia_pago || '').replace(/^NC\s*/i, '') || null,
+            productos: []
+          };
+        await sendCreditNoteNotification(invoice, nc, nc.productos || [], saldoAntes);
+      } else {
+        await sendPaymentNotification(invoice, pago, saldoAntes);
+      }
+      await window.app.askAlert('Aviso reenviado al grupo.');
+    } catch (error) {
+      await window.app.askAlert(error?.message || 'No fue posible reenviar el aviso.');
     }
   }
 
@@ -744,6 +927,7 @@
     const submit = el('invNcSubmit');
     submit.disabled = true;
     submit.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Aplicando';
+    let ncData = null;
     try {
       const response = await window.app.posApiRequest(`${API}/${encodeURIComponent(invoice.id)}${NC_API_SUFFIX}`, {
         method: 'POST',
@@ -756,24 +940,29 @@
         })
       });
       const data = response?.data || {};
+      ncData = data;
       if (data.invoice) state.current.invoice = data.invoice;
       if (data.pago) state.current.pagos = [data.pago, ...(state.current.pagos || [])];
       if (data.nota_credito) state.current.notas_credito = [data.nota_credito, ...(state.current.notas_credito || [])];
 
-      if (parsed.notificar && data.nota_credito) {
-        await sendCreditNoteNotification(state.current.invoice, data.nota_credito, parsed.productos, saldoAntes);
-      }
-
       renderDetail(state.current);
       setTab('historial');
       await loadInvoices();
-      await window.app.askAlert(`Nota de crédito de ${money(parsed.valor)} aplicada.`);
     } catch (error) {
       errorBox.textContent = error?.message || 'No fue posible aplicar la nota de crédito.';
       errorBox.hidden = false;
     } finally {
       submit.disabled = false;
       submit.innerHTML = '<i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> Aplicar nota de crédito';
+    }
+    // El aviso al grupo es obligatorio; si falla no invalida la NC ya registrada.
+    if (ncData?.nota_credito) {
+      try {
+        await sendCreditNoteNotification(state.current.invoice, ncData.nota_credito, parsed.productos, saldoAntes);
+        await window.app.askAlert(`Nota de crédito de ${money(parsed.valor)} aplicada y avisada al grupo.`);
+      } catch (avisoError) {
+        await window.app.askAlert('La nota de crédito se aplicó, pero el aviso al grupo falló. Usa "Reenviar" en el historial.');
+      }
     }
   }
 

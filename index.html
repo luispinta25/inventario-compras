@@ -618,7 +618,7 @@
               <div class="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Fecha</th><th class="number">Monto</th><th>Método</th><th>Referencia</th><th class="number">Saldo resultante</th></tr>
+                    <tr><th>Fecha</th><th class="number">Monto</th><th>Método</th><th>Referencia</th><th class="number">Saldo resultante</th><th>Aviso</th></tr>
                   </thead>
                   <tbody id="invHistorialBody"></tbody>
                 </table>
@@ -662,6 +662,7 @@
                 <label class="invoice-pago-full">Notas
                   <textarea id="invPagoNotas" rows="2" maxlength="500"></textarea>
                 </label>
+                <p class="invoice-pago-full invoice-nc-hint">Al registrar el pago se avisa al grupo con la imagen del detalle.</p>
                 <p class="invoice-pago-error" id="invPagoError" hidden></p>
                 <div class="invoice-pago-actions">
                   <button type="button" class="button button-secondary" id="invPagoCancel">Cancelar</button>
@@ -693,10 +694,7 @@
                 <label>Valor de la nota
                   <input type="number" id="invNcValor" step="0.01" min="0.01" inputmode="decimal" required readonly>
                 </label>
-                <label class="invoice-nc-auto invoice-pago-full">
-                  <input type="checkbox" id="invNcNotificar" checked>
-                  Avisar al grupo con imagen del detalle
-                </label>
+                <p class="invoice-pago-full invoice-nc-hint">Al aplicar la nota de crédito se avisa al grupo con la imagen del detalle.</p>
                 <p class="invoice-pago-error" id="invNcError" hidden></p>
                 <div class="invoice-pago-actions">
                   <button type="button" class="button button-secondary" id="invNcCancel">Cancelar</button>
