@@ -8,6 +8,9 @@
   const API = '/api/purchases/v2/express';
   const PROVIDERS_API = '/api/purchases/v2/providers';
   const MARGEN_SUGERIDO = 0.38;
+  const MIN_QUERY = 2;
+  const MAX_RESULTS = 10;
+  const BACKEND_DEBOUNCE_MS = 260;
   const UNIDADES = ['UNIDADES', 'CAJA', 'PAQUETES', 'PAR', 'FUNDA', 'CIENTOS', 'ENTERO',
     'LITROS', 'GALONES', 'LIBRAS', 'METROS', 'ROLLOS'];
 
@@ -17,7 +20,9 @@
     providers: [],
     items: [],
     idem: null,
-    reader: null
+    reader: null,
+    searchToken: 0,
+    searchTimer: null
   };
 
   const el = (id) => document.getElementById(id);
@@ -85,15 +90,75 @@
     return catalog().find((p) => String(p.codigo || '').trim().toLowerCase() === c) || null;
   }
 
-  function searchByText(query) {
-    const q = String(query || '').trim();
-    if (q.length < 2) return [];
+  // ---- Búsqueda: mismo método que el Comparador / Ingresar facturas -------
+  // Ranqueador compartido de app.js (idéntico al del backend) sobre el catálogo
+  // ya cacheado; mientras el catálogo carga, cae a GET /v2/inventory/search.
+  function normalizeSearch(value) {
+    return String(value ?? '')
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLocaleLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .trim();
+  }
+
+  function localRankFallback(rows, query) {
+    const tokens = normalizeSearch(query).split(/\s+/).filter(Boolean);
+    if (!tokens.length) return [];
+    const phrase = normalizeSearch(query);
+    return rows
+      .map((row) => {
+        const searchable = normalizeSearch(`${row.codigo} ${row.producto ?? row.nombre ?? ''}`);
+        const words = new Set(searchable.split(' ').filter(Boolean));
+        const exact = tokens.filter((t) => words.has(t)).length;
+        const partial = tokens.filter((t) => searchable.includes(t)).length;
+        const score = (exact === tokens.length ? 10000 : 0) + exact * 1000 + partial * 100
+          + (searchable.includes(phrase) ? 10 : 0);
+        return { row, score };
+      })
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score || String(a.row.codigo).localeCompare(String(b.row.codigo)))
+      .slice(0, MAX_RESULTS)
+      .map(({ row }) => row);
+  }
+
+  function rankLocal(query) {
+    const rows = catalog();
+    const shared = window.app && window.app.inventoryCatalog;
+    const ranked = shared && typeof shared.rank === 'function'
+      ? shared.rank(rows, query)
+      : localRankFallback(rows, query);
+    return ranked.slice(0, MAX_RESULTS);
+  }
+
+  const catalogReady = () => catalog().length > 0;
+
+  async function backendSearch(query) {
+    const token = ++state.searchToken;
+    setResultsStatus('Buscando…');
     try {
-      const ranked = window.app.inventoryCatalog.rank(q);
-      if (Array.isArray(ranked) && ranked.length) return ranked.slice(0, 8);
-    } catch (_) { /* fallback abajo */ }
-    const nq = q.toLowerCase();
-    return catalog().filter((p) => `${p.codigo} ${p.producto}`.toLowerCase().includes(nq)).slice(0, 8);
+      const response = await window.app.posApiRequest(
+        `/api/purchases/v2/inventory/search?query=${encodeURIComponent(query)}`, { method: 'GET' }
+      );
+      if (token !== state.searchToken) return;
+      renderResults((response?.data || []).slice(0, MAX_RESULTS), query);
+    } catch (error) {
+      if (token !== state.searchToken) return;
+      setResultsStatus(error?.message || 'No fue posible buscar productos.');
+    }
+  }
+
+  function runSearch(rawValue) {
+    const query = String(rawValue || '').trim();
+    window.clearTimeout(state.searchTimer);
+    if (query.length < MIN_QUERY) { state.searchToken += 1; el('expSearchResults').hidden = true; return; }
+    if (catalogReady()) {
+      state.searchToken += 1;
+      renderResults(rankLocal(query), query);
+    } else {
+      setResultsStatus('Cargando catálogo…');
+      state.searchTimer = window.setTimeout(() => backendSearch(query), BACKEND_DEBOUNCE_MS);
+    }
   }
 
   function addExisting(product) {
@@ -137,6 +202,8 @@
     render();
   }
 
+  // Enter o escaneo: código exacto -> se agrega; código de barras sin match ->
+  // producto nuevo; texto -> se resuelve por el ranqueador (o backend).
   function handleInput(rawValue, { fromScanner = false } = {}) {
     const raw = String(rawValue || '').trim();
     if (!raw) return;
@@ -148,28 +215,40 @@
       showError('Producto nuevo: completa nombre, zona y precio de venta en la fila.');
       return;
     }
-    const results = searchByText(raw);
-    if (results.length === 1) { addExisting(results[0]); return; }
-    renderResults(results, raw);
+    if (catalogReady()) {
+      const results = rankLocal(raw);
+      if (results.length === 1) { addExisting(results[0]); return; }
+      renderResults(results, raw);
+      return;
+    }
+    window.clearTimeout(state.searchTimer);
+    backendSearch(raw);
+  }
+
+  function setResultsStatus(text) {
+    const box = el('expSearchResults');
+    box.replaceChildren();
+    const p = document.createElement('p');
+    p.className = 'express-search-empty';
+    p.textContent = text;
+    box.appendChild(p);
+    box.hidden = false;
   }
 
   function renderResults(list, query) {
     const box = el('expSearchResults');
     box.replaceChildren();
     if (!list.length) {
-      const p = document.createElement('p');
-      p.className = 'express-search-empty';
-      p.textContent = `Sin coincidencias para “${query}”. Escanea el código para crearlo como producto nuevo.`;
-      box.appendChild(p);
-      box.hidden = false;
+      setResultsStatus(`Sin coincidencias para “${query}”. Escanea el código para crearlo como producto nuevo.`);
       return;
     }
     list.forEach((product) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'express-search-item';
-      btn.innerHTML = `<strong>${esc(product.codigo || '-')}</strong> · ${esc(product.producto || '')}`
-        + `<span>P. compra ${money(product.precio_proveedor)} · P. venta ${money(product.precio)}</span>`;
+      const tienePrecios = product.precio_proveedor != null || product.precio != null;
+      btn.innerHTML = `<strong>${esc(product.codigo || '-')}</strong> · ${esc(product.producto || product.nombre || '')}`
+        + (tienePrecios ? `<span>P. compra ${money(product.precio_proveedor)} · P. venta ${money(product.precio)}</span>` : '');
       btn.addEventListener('click', () => addExisting(product));
       box.appendChild(btn);
     });
@@ -394,6 +473,7 @@
     el('expScanButton').addEventListener('click', () => (state.reader ? stopScan() : startScan()));
     el('expScannerStop').addEventListener('click', stopScan);
     el('expAddButton').addEventListener('click', () => handleInput(el('expScanInput').value));
+    el('expScanInput').addEventListener('input', (event) => runSearch(event.target.value));
     el('expScanInput').addEventListener('keydown', (event) => {
       if (event.key === 'Enter') { event.preventDefault(); handleInput(el('expScanInput').value); }
     });
