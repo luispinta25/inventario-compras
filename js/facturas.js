@@ -550,7 +550,7 @@
   }
 
   // Imagen (1:1, PNG base64) con el detalle de la NC, para el aviso al grupo.
-  function buildCreditNoteImage(invoice, nc, productos) {
+  function buildCreditNoteImage(invoice, nc, productos, saldoAntes) {
     const S = 1080;
     const canvas = document.createElement('canvas');
     canvas.width = S;
@@ -628,39 +628,53 @@
       }
     }
 
+    const saldoNuevo = Number(invoice.saldo_pendiente) || 0;
+    const saldoPrevio = Number.isFinite(Number(saldoAntes)) ? Number(saldoAntes) : saldoNuevo + Number(nc.valor || 0);
+
+    ctx.fillStyle = MUTED;
+    ctx.font = `500 22px ${SANS}`;
+    ctx.textAlign = 'center';
+    ctx.fillText(`Registrada · ${fecha}`, S / 2, 858);
+
     ctx.fillStyle = '#2f7a44';
-    ctx.fillRect(0, 906, S, 174);
+    ctx.fillRect(0, 900, S, 180);
     ctx.strokeStyle = INK;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(0, 906);
-    ctx.lineTo(S, 906);
+    ctx.moveTo(0, 900);
+    ctx.lineTo(S, 900);
     ctx.stroke();
-    ctx.fillStyle = inkOn('#2f7a44');
+
+    const ink = inkOn('#2f7a44');
+    ctx.fillStyle = ink;
     ctx.textAlign = 'left';
-    ctx.font = `700 30px ${SANS}`;
-    ctx.fillText('Saldo nuevo de la factura', 70, 972);
-    ctx.textAlign = 'right';
-    setCanvasLS(ctx, 1);
-    fitCanvasFont(ctx, money(invoice.saldo_pendiente), COND, '400', 84, 460);
-    ctx.fillText(money(invoice.saldo_pendiente), S - 70, 976);
+    setCanvasLS(ctx, 3);
+    ctx.font = `700 20px ${SANS}`;
+    ctx.fillText('SALDO ANTERIOR', 70, 952);
+    ctx.fillText('SALDO NUEVO', 70, 1040);
     setCanvasLS(ctx, 0);
-    ctx.textAlign = 'center';
-    ctx.fillStyle = MUTED;
-    ctx.font = `500 22px ${SANS}`;
-    ctx.fillText(`Registrada · ${fecha}`, S / 2, 862);
+    ctx.textAlign = 'right';
+    ctx.font = `600 40px ${COND}`;
+    ctx.fillText(money(saldoPrevio), S - 70, 952);
+    setCanvasLS(ctx, 1);
+    fitCanvasFont(ctx, money(saldoNuevo), COND, '400', 72, 420);
+    ctx.fillText(money(saldoNuevo), S - 70, 1042);
+    setCanvasLS(ctx, 0);
 
     return canvas.toDataURL('image/png');
   }
 
-  function buildCreditNoteMessage(invoice, nc, productos) {
+  function buildCreditNoteMessage(invoice, nc, productos, saldoAntes) {
+    const saldoNuevo = Number(invoice.saldo_pendiente) || 0;
+    const saldoPrevio = Number.isFinite(Number(saldoAntes)) ? Number(saldoAntes) : saldoNuevo + Number(nc.valor || 0);
     const lines = [
       '*NOTA DE CRÉDITO*',
       '',
       `Proveedor: *${invoice.proveedor_empresa || '-'}*`,
       `Factura: *${invoice.numero_factura || '-'}*`,
       `Valor: *${money(nc.valor)}*`,
-      `Saldo nuevo: *${money(invoice.saldo_pendiente)}*`
+      `Saldo anterior: ${money(saldoPrevio)}`,
+      `Saldo nuevo: *${money(saldoNuevo)}*`
     ];
     const conProducto = (productos || []).filter((p) => Number(p.valor) > 0);
     if (conProducto.length) {
@@ -671,10 +685,10 @@
     return lines.join('\n');
   }
 
-  async function sendCreditNoteNotification(invoice, nc, productos) {
-    const message = buildCreditNoteMessage(invoice, nc, productos);
+  async function sendCreditNoteNotification(invoice, nc, productos, saldoAntes) {
+    const message = buildCreditNoteMessage(invoice, nc, productos, saldoAntes);
     try {
-      const dataUrl = buildCreditNoteImage(invoice, nc, productos);
+      const dataUrl = buildCreditNoteImage(invoice, nc, productos, saldoAntes);
       const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
       await window.app.posApiRequest(WHATSAPP_MEDIA_API, {
         method: 'POST',
@@ -714,6 +728,7 @@
     );
     if (!confirmed) return;
 
+    const saldoAntes = Number(invoice.saldo_pendiente) || 0;
     const submit = el('invNcSubmit');
     submit.disabled = true;
     submit.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Aplicando';
@@ -733,7 +748,7 @@
       if (data.nota_credito) state.current.notas_credito = [data.nota_credito, ...(state.current.notas_credito || [])];
 
       if (parsed.notificar && data.nota_credito) {
-        await sendCreditNoteNotification(state.current.invoice, data.nota_credito, parsed.productos);
+        await sendCreditNoteNotification(state.current.invoice, data.nota_credito, parsed.productos, saldoAntes);
       }
 
       renderDetail(state.current);
