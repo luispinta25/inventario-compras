@@ -270,6 +270,7 @@
     renderHistorial(payload.pagos || []);
     renderProductos(payload.productos || []);
     preparePagoForm(invoice);
+    prepareNcForm(invoice);
   }
 
   function renderHistorial(pagos) {
@@ -415,6 +416,336 @@
     } finally {
       submit.disabled = false;
       submit.innerHTML = '<i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Registrar pago';
+    }
+  }
+
+  // ---- Nota de crédito -----------------------------------------------------
+  // Reduce el saldo de la factura. Valor automático = saldo pendiente; se puede
+  // ingresar a mano. Puede referenciar los productos que involucra el ajuste.
+  const NC_API_SUFFIX = '/notas-credito';
+
+  function prepareNcForm(invoice) {
+    const form = el('invNcForm');
+    form.reset();
+    el('invNcError').hidden = true;
+    el('invNcSaldo').textContent = money(invoice.saldo_pendiente);
+    el('invNcAuto').checked = true;
+    el('invNcNotificar').checked = true;
+    el('invNcNumero').value = '';
+    el('invNcMotivo').value = '';
+    const valor = el('invNcValor');
+    valor.max = String(invoice.saldo_pendiente);
+    valor.value = Number(invoice.saldo_pendiente || 0).toFixed(2);
+    valor.readOnly = true;
+    const settled = !(invoice.saldo_pendiente > 0) || invoice.archivada;
+    el('invNcSubmit').disabled = settled;
+    form.classList.toggle('is-locked', settled);
+    renderNcProductos();
+  }
+
+  function renderNcProductos() {
+    const box = el('invNcProductos');
+    box.replaceChildren();
+    const productos = state.current?.productos || [];
+    if (!productos.length) {
+      const empty = document.createElement('p');
+      empty.className = 'invoice-nc-productos-empty';
+      empty.textContent = 'La factura no tiene productos registrados.';
+      box.appendChild(empty);
+      return;
+    }
+    productos.forEach((producto, index) => {
+      const row = document.createElement('label');
+      row.className = 'invoice-nc-producto';
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.dataset.ncProducto = String(index);
+      const nombre = document.createElement('span');
+      nombre.className = 'invoice-nc-producto-nombre';
+      nombre.textContent = `${producto.codigo_producto || '-'} · ${producto.nombre_producto || 'Producto'}`;
+      const valor = document.createElement('span');
+      valor.className = 'invoice-nc-producto-valor';
+      valor.dataset.ncProductoValor = String(index);
+      valor.textContent = '';
+      row.append(check, nombre, valor);
+      box.appendChild(row);
+    });
+  }
+
+  function ncValorActual() {
+    const invoice = state.current?.invoice;
+    const saldo = Number(invoice?.saldo_pendiente) || 0;
+    if (el('invNcAuto').checked) return saldo;
+    const parsed = Number(String(el('invNcValor').value).replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  // Reparte el valor de la NC entre los productos marcados, proporcional a
+  // cantidad x precio; la última línea absorbe el redondeo.
+  function recomputeNcLines() {
+    const productos = state.current?.productos || [];
+    const total = Math.max(0, ncValorActual());
+    const marcados = [...el('invNcProductos').querySelectorAll('[data-nc-producto]')]
+      .map((input, i) => ({ input, i, producto: productos[i] }))
+      .filter((entry) => entry.input.checked && entry.producto);
+    el('invNcProductos').querySelectorAll('[data-nc-producto-valor]').forEach((span) => { span.textContent = ''; });
+    if (!marcados.length || total <= 0) return [];
+    const pesos = marcados.map(({ producto }) =>
+      Math.max(0, (Number(producto.cantidad) || 0) * (Number(producto.precio_proveedor) || 0)));
+    const sumaPesos = pesos.reduce((sum, w) => sum + w, 0);
+    let asignado = 0;
+    const lineas = marcados.map((entry, idx) => {
+      let valor;
+      if (idx === marcados.length - 1) {
+        valor = Math.round((total - asignado) * 100) / 100;
+      } else {
+        const parte = sumaPesos > 0 ? total * (pesos[idx] / sumaPesos) : total / marcados.length;
+        valor = Math.round(parte * 100) / 100;
+        asignado += valor;
+      }
+      const span = el('invNcProductos').querySelector(`[data-nc-producto-valor="${entry.i}"]`);
+      if (span) span.textContent = money(valor);
+      return {
+        detalle_id: entry.producto.id || undefined,
+        codigo: entry.producto.codigo_producto || undefined,
+        nombre: entry.producto.nombre_producto || undefined,
+        valor
+      };
+    });
+    return lineas;
+  }
+
+  function syncNcAuto() {
+    const invoice = state.current?.invoice;
+    const valor = el('invNcValor');
+    if (el('invNcAuto').checked) {
+      valor.value = Number(invoice?.saldo_pendiente || 0).toFixed(2);
+      valor.readOnly = true;
+    } else {
+      valor.readOnly = false;
+      valor.focus();
+    }
+    recomputeNcLines();
+  }
+
+  function validateNc() {
+    const invoice = state.current?.invoice;
+    if (!invoice) return null;
+    const saldo = Number(invoice.saldo_pendiente) || 0;
+    const motivo = el('invNcMotivo').value.trim();
+    if (motivo.length < 3) return { error: 'Escribe el motivo de la nota de crédito.' };
+    const auto = el('invNcAuto').checked;
+    let valor = auto ? saldo : Number(String(el('invNcValor').value).replace(',', '.'));
+    if (!Number.isFinite(valor) || valor <= 0) return { error: 'El valor de la nota de crédito no es válido.' };
+    if (valor > saldo + 0.01) return { error: 'El valor no puede superar el saldo pendiente.' };
+    valor = Math.min(valor, saldo);
+    return {
+      auto,
+      valor,
+      motivo,
+      numero: el('invNcNumero').value.trim() || undefined,
+      productos: recomputeNcLines(),
+      notificar: el('invNcNotificar').checked
+    };
+  }
+
+  // Imagen (1:1, PNG base64) con el detalle de la NC, para el aviso al grupo.
+  function buildCreditNoteImage(invoice, nc, productos) {
+    const S = 1080;
+    const canvas = document.createElement('canvas');
+    canvas.width = S;
+    canvas.height = S;
+    const ctx = canvas.getContext('2d');
+    const COND = 'Impact, Haettenschweiler, "Arial Narrow Bold", "Arial Narrow", "Helvetica Neue", sans-serif';
+    const SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+    const INK = '#171410';
+    const MUTED = '#6a6456';
+    const fecha = new Date().toLocaleDateString('es-EC', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    ctx.fillStyle = '#f4f1e9';
+    ctx.fillRect(0, 0, S, S);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(41, 41, S - 82, S - 82);
+    ctx.fillStyle = '#2f7a44';
+    ctx.fillRect(41, 41, S - 82, 12);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = MUTED;
+    setCanvasLS(ctx, 4);
+    ctx.font = `600 26px ${SANS}`;
+    ctx.fillText('FERRISOLUCIONES · MACHACHI', S / 2, 132);
+
+    ctx.fillStyle = INK;
+    setCanvasLS(ctx, 5);
+    fitCanvasFont(ctx, 'NOTA DE CRÉDITO', COND, '400', 118, S - 160);
+    ctx.fillText('NOTA DE CRÉDITO', S / 2, 250);
+    setCanvasLS(ctx, 0);
+
+    ctx.strokeStyle = 'rgba(23, 20, 16, .32)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(180, 322);
+    ctx.lineTo(S - 180, 322);
+    ctx.stroke();
+
+    const proveedor = String(invoice.proveedor_empresa || 'Proveedor').toUpperCase();
+    const fitted = fitProviderLines(ctx, proveedor, SANS, '800', S - 200, 2);
+    ctx.fillStyle = INK;
+    ctx.font = `800 ${fitted.px}px ${SANS}`;
+    let ny = 400 - (fitted.lines.length - 1) * fitted.px * 0.55;
+    fitted.lines.forEach((line) => { ctx.fillText(line, S / 2, ny); ny += fitted.px * 1.08; });
+
+    ctx.fillStyle = MUTED;
+    ctx.font = `600 30px ${SANS}`;
+    ctx.fillText(`Factura ${invoice.numero_factura || '-'}`, S / 2, Math.max(ny + 18, 470));
+
+    ctx.fillStyle = '#2f7a44';
+    setCanvasLS(ctx, 1);
+    fitCanvasFont(ctx, money(nc.valor), COND, '400', 150, S - 220);
+    ctx.fillText(money(nc.valor), S / 2, 590);
+    setCanvasLS(ctx, 0);
+
+    ctx.fillStyle = INK;
+    ctx.font = `500 26px ${SANS}`;
+    const motivoLines = wrapCanvasText(ctx, `Motivo: ${nc.motivo}`, S - 260).slice(0, 3);
+    let my = 690;
+    motivoLines.forEach((line) => { ctx.fillText(line, S / 2, my); my += 34; });
+
+    const conProducto = (productos || []).filter((p) => Number(p.valor) > 0);
+    if (conProducto.length) {
+      ctx.fillStyle = MUTED;
+      ctx.font = `600 22px ${SANS}`;
+      let py = my + 16;
+      conProducto.slice(0, 4).forEach((p) => {
+        const linea = wrapCanvasText(ctx, `• ${p.nombre || p.codigo || 'Producto'}  ${money(p.valor)}`, S - 260)[0] || '';
+        ctx.fillText(linea, S / 2, py);
+        py += 28;
+      });
+      if (conProducto.length > 4) {
+        ctx.fillText(`y ${conProducto.length - 4} más`, S / 2, py);
+      }
+    }
+
+    ctx.fillStyle = '#2f7a44';
+    ctx.fillRect(0, 906, S, 174);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 906);
+    ctx.lineTo(S, 906);
+    ctx.stroke();
+    ctx.fillStyle = inkOn('#2f7a44');
+    ctx.textAlign = 'left';
+    ctx.font = `700 30px ${SANS}`;
+    ctx.fillText('Saldo nuevo de la factura', 70, 972);
+    ctx.textAlign = 'right';
+    setCanvasLS(ctx, 1);
+    fitCanvasFont(ctx, money(invoice.saldo_pendiente), COND, '400', 84, 460);
+    ctx.fillText(money(invoice.saldo_pendiente), S - 70, 976);
+    setCanvasLS(ctx, 0);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = MUTED;
+    ctx.font = `500 22px ${SANS}`;
+    ctx.fillText(`Registrada · ${fecha}`, S / 2, 862);
+
+    return canvas.toDataURL('image/png');
+  }
+
+  function buildCreditNoteMessage(invoice, nc, productos) {
+    const lines = [
+      '*NOTA DE CRÉDITO*',
+      '',
+      `Proveedor: *${invoice.proveedor_empresa || '-'}*`,
+      `Factura: *${invoice.numero_factura || '-'}*`,
+      `Valor: *${money(nc.valor)}*`,
+      `Saldo nuevo: *${money(invoice.saldo_pendiente)}*`
+    ];
+    const conProducto = (productos || []).filter((p) => Number(p.valor) > 0);
+    if (conProducto.length) {
+      lines.push('', 'Productos:');
+      conProducto.forEach((p) => lines.push(`- ${p.nombre || p.codigo || 'Producto'} · ${money(p.valor)}`));
+    }
+    lines.push('', `Motivo: ${nc.motivo}`);
+    return lines.join('\n');
+  }
+
+  async function sendCreditNoteNotification(invoice, nc, productos) {
+    const message = buildCreditNoteMessage(invoice, nc, productos);
+    try {
+      const dataUrl = buildCreditNoteImage(invoice, nc, productos);
+      const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+      await window.app.posApiRequest(WHATSAPP_MEDIA_API, {
+        method: 'POST',
+        body: JSON.stringify({
+          media: {
+            mediatype: 'image', mimetype: 'image/png', media: base64,
+            fileName: 'nota-credito.png', caption: message, delay: 1000
+          }
+        })
+      });
+    } catch (imageError) {
+      await window.app.posApiRequest(WHATSAPP_API, {
+        method: 'POST',
+        body: JSON.stringify({ text: message, delay: 1000, linkPreview: false })
+      });
+    }
+  }
+
+  async function submitNc(event) {
+    event.preventDefault();
+    const invoice = state.current?.invoice;
+    if (!invoice) return;
+    const errorBox = el('invNcError');
+    errorBox.hidden = true;
+
+    const parsed = validateNc();
+    if (!parsed) return;
+    if (parsed.error) {
+      errorBox.textContent = parsed.error;
+      errorBox.hidden = false;
+      return;
+    }
+
+    const confirmed = await window.app.askConfirm(
+      `Aplicar una nota de crédito de ${money(parsed.valor)} a la factura ${invoice.numero_factura}?`,
+      { confirmText: 'Aplicar nota de crédito' }
+    );
+    if (!confirmed) return;
+
+    const submit = el('invNcSubmit');
+    submit.disabled = true;
+    submit.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Aplicando';
+    try {
+      const response = await window.app.posApiRequest(`${API}/${encodeURIComponent(invoice.id)}${NC_API_SUFFIX}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          valor: parsed.auto ? undefined : parsed.valor,
+          motivo: parsed.motivo,
+          numero: parsed.numero,
+          productos: parsed.productos.length ? parsed.productos : undefined
+        })
+      });
+      const data = response?.data || {};
+      if (data.invoice) state.current.invoice = data.invoice;
+      if (data.pago) state.current.pagos = [data.pago, ...(state.current.pagos || [])];
+      if (data.nota_credito) state.current.notas_credito = [data.nota_credito, ...(state.current.notas_credito || [])];
+
+      if (parsed.notificar && data.nota_credito) {
+        await sendCreditNoteNotification(state.current.invoice, data.nota_credito, parsed.productos);
+      }
+
+      renderDetail(state.current);
+      setTab('historial');
+      await loadInvoices();
+      await window.app.askAlert(`Nota de crédito de ${money(parsed.valor)} aplicada.`);
+    } catch (error) {
+      errorBox.textContent = error?.message || 'No fue posible aplicar la nota de crédito.';
+      errorBox.hidden = false;
+    } finally {
+      submit.disabled = false;
+      submit.innerHTML = '<i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> Aplicar nota de crédito';
     }
   }
 
@@ -834,6 +1165,14 @@
     el('invPagoTipo').addEventListener('change', syncPagoTipo);
     el('invPagoCancel').addEventListener('click', closeModal);
     el('invPagoForm').addEventListener('submit', submitPago);
+
+    el('invNcAuto').addEventListener('change', syncNcAuto);
+    el('invNcValor').addEventListener('input', recomputeNcLines);
+    el('invNcProductos').addEventListener('change', (event) => {
+      if (event.target.matches('[data-nc-producto]')) recomputeNcLines();
+    });
+    el('invNcCancel').addEventListener('click', closeModal);
+    el('invNcForm').addEventListener('submit', submitNc);
   }
 
   window.initFacturas = async function initFacturas() {

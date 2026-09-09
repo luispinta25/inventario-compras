@@ -589,6 +589,7 @@
             <button type="button" class="invoice-tab" data-inv-tab="historial" role="tab" aria-selected="false">Historial</button>
             <button type="button" class="invoice-tab" data-inv-tab="productos" role="tab" aria-selected="false">Productos</button>
             <button type="button" class="invoice-tab" data-inv-tab="pago" role="tab" aria-selected="false">Registrar pago</button>
+            <button type="button" class="invoice-tab" data-inv-tab="nota-credito" role="tab" aria-selected="false">Nota de crédito</button>
           </div>
 
           <div class="invoice-modal-body">
@@ -667,6 +668,41 @@
                   <button type="submit" class="button button-primary" id="invPagoSubmit">
                     <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
                     Registrar pago
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div class="invoice-tab-panel" data-inv-panel="nota-credito">
+              <form id="invNcForm" class="invoice-pago-form" novalidate>
+                <p class="invoice-pago-saldo">Saldo pendiente: <strong id="invNcSaldo">$0.00</strong></p>
+                <label class="invoice-nc-auto">
+                  <input type="checkbox" id="invNcAuto" checked>
+                  Valor automático (todo el saldo pendiente)
+                </label>
+                <label>Valor de la nota
+                  <input type="number" id="invNcValor" step="0.01" min="0.01" inputmode="decimal" required readonly>
+                </label>
+                <label>Número de NC (opcional)
+                  <input type="text" id="invNcNumero" maxlength="60" autocomplete="off">
+                </label>
+                <label class="invoice-pago-full">Motivo
+                  <textarea id="invNcMotivo" rows="2" maxlength="500" required></textarea>
+                </label>
+                <div class="invoice-pago-full invoice-nc-productos">
+                  <p class="invoice-nc-productos-title">Productos que involucra el ajuste <span>(opcional)</span></p>
+                  <div id="invNcProductos" class="invoice-nc-productos-list"></div>
+                </div>
+                <label class="invoice-nc-auto invoice-pago-full">
+                  <input type="checkbox" id="invNcNotificar" checked>
+                  Avisar al grupo con imagen del detalle
+                </label>
+                <p class="invoice-pago-error" id="invNcError" hidden></p>
+                <div class="invoice-pago-actions">
+                  <button type="button" class="button button-secondary" id="invNcCancel">Cancelar</button>
+                  <button type="submit" class="button button-primary" id="invNcSubmit">
+                    <i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i>
+                    Aplicar nota de crédito
                   </button>
                 </div>
               </form>

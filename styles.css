@@ -801,6 +801,19 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .invoice-pago-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .invoice-pago-form.is-locked input, .invoice-pago-form.is-locked select, .invoice-pago-form.is-locked textarea { opacity: .6; pointer-events: none; }
 
+/* ---- Nota de crédito ---- */
+.invoice-nc-auto { flex-direction: row !important; align-items: center; gap: 8px !important; font-weight: 650 !important; color: var(--ink) !important; }
+.invoice-nc-auto input { height: auto !important; width: auto; }
+.invoice-nc-productos { display: flex; flex-direction: column; gap: 8px; }
+.invoice-nc-productos-title { margin: 0; font-size: 12px; font-weight: 800; color: #41474e; text-transform: uppercase; letter-spacing: .04em; }
+.invoice-nc-productos-title span { font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--muted); }
+.invoice-nc-productos-list { display: flex; flex-direction: column; gap: 4px; max-height: 190px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; padding: 8px; background: #fbfbfc; }
+.invoice-nc-productos-list .invoice-nc-producto { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; padding: 3px 2px; color: var(--ink); }
+.invoice-nc-productos-list .invoice-nc-producto input[type="checkbox"] { height: auto; width: auto; flex: none; }
+.invoice-nc-producto .invoice-nc-producto-nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.invoice-nc-producto .invoice-nc-producto-valor { font-variant-numeric: tabular-nums; color: var(--muted); }
+.invoice-nc-productos-empty { margin: 0; font-size: 13px; color: var(--muted); }
+
 @media (max-width: 620px) {
   .invoice-pago-form { grid-template-columns: 1fr; }
   .invoices-field .form-select { min-width: 0; width: 100%; }
