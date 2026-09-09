@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260909.20';
+const APP_BUILD = '20260909.21';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -11,6 +11,9 @@ const POS_API_BASE_URL = window.location.hostname === '127.0.0.1' && window.loca
   : 'https://api.ferrisoluciones.com';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
+    // Clave de almacenamiento propia: la sesión de Inventario es independiente
+    // de la del POS aunque compartan Supabase y dominio.
+    storageKey: 'ferri-inventario-auth',
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false
