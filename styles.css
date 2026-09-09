@@ -824,6 +824,39 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
   .invoices-field .form-select { min-width: 0; width: 100%; }
 }
 
+/* ---- Compra express ---- */
+.express-hint { margin: 0 0 14px; font-size: 13px; color: var(--muted); }
+.express-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 12px; }
+.express-toolbar .invoices-field { flex: 0 0 auto; }
+.express-toolbar .express-scan-field { flex: 1 1 320px; }
+.express-scan-field input { height: 42px; padding: 0 12px; border: 2px solid #9ea6ae; border-radius: 6px; background: #fff; font: inherit; font-size: 14px; }
+.express-scan-field input:focus { border-color: var(--accent-dark); outline: 2px solid #f4d789; outline-offset: 1px; }
+.express-toolbar .button { min-height: 42px; }
+.express-scanner { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+.express-scanner video { width: min(420px, 100%); border: 1px solid var(--line); border-radius: 8px; background: #000; }
+.express-search-results { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 8px; padding: 6px; background: #fbfbfc; }
+.express-search-item { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; font: inherit; font-size: 13px; cursor: pointer; }
+.express-search-item:hover { background: #eef0f2; }
+.express-search-item span { color: var(--muted); font-size: 12px; }
+.express-search-empty { margin: 0; padding: 8px 10px; font-size: 13px; color: var(--muted); }
+.express-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.express-table th, .express-table td { padding: 8px 10px; border-bottom: 1px solid #eef0f2; text-align: left; vertical-align: top; }
+.express-table th.number, .express-table td.number { text-align: right; }
+.express-table input[type="number"] { width: 92px; height: 32px; padding: 0 8px; border: 1px solid #9ea6ae; border-radius: 5px; font: inherit; font-size: 13px; text-align: right; }
+.express-table td:nth-child(3) input { width: 74px; }
+.express-name-input { width: 100%; min-width: 180px; height: 32px; padding: 0 8px; border: 1px solid #9ea6ae; border-radius: 5px; font: inherit; font-size: 13px; }
+.express-new-extra { display: flex; gap: 6px; margin-top: 6px; }
+.express-mini-select { height: 30px; border: 1px solid #9ea6ae; border-radius: 5px; font: inherit; font-size: 12px; background: #fff; }
+.express-table tr.is-new { background: #fff9ec; }
+.express-code { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.express-tag { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: var(--accent); color: #3a2f00; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.express-subtotal { font-variant-numeric: tabular-nums; font-weight: 700; }
+.express-remove { border: 1px solid #d9b3b8; border-radius: 5px; background: #fff; color: var(--red); width: 30px; height: 30px; cursor: pointer; }
+.express-remove:hover { background: var(--red-soft); }
+.express-empty { margin: 14px 0; color: var(--muted); font-size: 13px; text-align: center; }
+.express-notas { display: flex; flex-direction: column; gap: 5px; margin: 14px 0 6px; color: #41474e; font-size: 12px; font-weight: 800; }
+.express-notas textarea { padding: 10px 12px; border: 2px solid #9ea6ae; border-radius: 6px; font: inherit; font-size: 14px; resize: vertical; }
+
 /* ---- Notificar visita ---- */
 .visit-modal-dialog { width: min(560px, 100%); }
 .visit-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; color: #41474e; font-size: 12px; font-weight: 800; }

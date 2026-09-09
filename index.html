@@ -89,6 +89,10 @@
           <i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i>
           <span>Facturas</span>
         </a>
+        <a href="#compra-express" class="module-nav-item" data-app-module="compra-express" title="Compra express (sin factura, contado)">
+          <i class="fa-solid fa-bolt" aria-hidden="true"></i>
+          <span>Compra<br>express</span>
+        </a>
         <a href="#comparador" class="module-nav-item" data-app-module="comparator" title="Comparador de precios">
           <i class="fa-solid fa-scale-balanced" aria-hidden="true"></i>
           <span>Comparador</span>
@@ -744,6 +748,67 @@
           </div>
         </section>
       </div>
+
+      <section class="module-panel express-panel" data-module-panel="compra-express" hidden aria-labelledby="expressTitle">
+        <header class="app-header">
+          <div>
+            <p class="module-kicker">COMPRA SIN FACTURA · CONTADO</p>
+            <h2 id="expressTitle">Compra express</h2>
+          </div>
+          <div class="invoices-totals">
+            <div><span>Productos</span><strong id="expLineCount">0</strong></div>
+            <div><span>Total a pagar</span><strong id="expTotal">$0.00</strong></div>
+          </div>
+        </header>
+
+        <main class="invoices-workspace">
+          <p class="express-hint">Solo proveedores sin RUC vinculado. Se registra la compra pagada en efectivo y sube el stock al instante.</p>
+          <section class="express-toolbar">
+            <label class="invoices-field">
+              <span>Proveedor</span>
+              <select id="expProveedor" class="form-select"><option value="">Selecciona un proveedor…</option></select>
+            </label>
+            <label class="invoices-field express-scan-field">
+              <span>Escanear o buscar (código / nombre)</span>
+              <input type="text" id="expScanInput" autocomplete="off" placeholder="Escanea el código de barras o escribe…">
+            </label>
+            <button type="button" class="button button-secondary" id="expScanButton"><i class="fa-solid fa-barcode" aria-hidden="true"></i> Escanear</button>
+            <button type="button" class="button button-secondary" id="expAddButton"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Buscar</button>
+          </section>
+
+          <div class="express-scanner" id="expScannerWrap" hidden>
+            <video id="expScannerVideo" playsinline muted></video>
+            <button type="button" class="button button-secondary" id="expScannerStop"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Cerrar cámara</button>
+          </div>
+          <div class="express-search-results" id="expSearchResults" hidden></div>
+
+          <div class="table-wrap">
+            <table class="express-table">
+              <thead>
+                <tr>
+                  <th>Código</th><th>Producto</th>
+                  <th class="number">Cantidad</th><th class="number">P. compra</th>
+                  <th class="number">P. venta</th><th class="number">Subtotal</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="expBody"></tbody>
+            </table>
+          </div>
+          <p class="express-empty" id="expEmpty">Escanea o busca productos para empezar.</p>
+
+          <label class="express-notas">Notas (opcional)
+            <textarea id="expNotas" rows="2" maxlength="500"></textarea>
+          </label>
+          <p class="invoice-pago-error" id="expError" hidden></p>
+          <div class="invoice-pago-actions">
+            <button type="button" class="button button-secondary" id="expClear">Vaciar</button>
+            <button type="button" class="button button-primary" id="expSubmit" disabled>
+              <i class="fa-solid fa-cash-register" aria-hidden="true"></i>
+              Registrar compra pagada
+            </button>
+          </div>
+        </main>
+      </section>
 
       <section class="module-panel dashboard-panel" data-module-panel="provider-dashboard" hidden aria-labelledby="dashTitle">
         <header class="app-header">

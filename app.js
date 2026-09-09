@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260909.21';
+const APP_BUILD = '20260909.22';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -482,6 +482,7 @@ function moduleFromHash() {
   return {
     '#ingreso-facturas': 'invoice-import',
     '#facturas': 'provider-invoices',
+    '#compra-express': 'compra-express',
     '#dashboard': 'provider-dashboard',
     '#comparador': 'comparator',
     '#producto-proveedores': 'product-providers',
@@ -708,6 +709,26 @@ function loadInvoicesModule() {
   return invoicesModuleRequest;
 }
 
+let expressModuleRequest = null;
+
+function loadExpressModule() {
+  if (typeof window.initCompraExpress === 'function') return Promise.resolve();
+  if (expressModuleRequest) return expressModuleRequest;
+  expressModuleRequest = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `js/compra-express.js?v=${APP_BUILD}`;
+    script.dataset.module = 'compra-express';
+    script.onload = () => resolve();
+    script.onerror = () => {
+      expressModuleRequest = null;
+      script.remove();
+      reject(new Error('No se pudo cargar la compra express.'));
+    };
+    document.body.appendChild(script);
+  });
+  return expressModuleRequest;
+}
+
 let dashboardModuleRequest = null;
 
 function loadDashboardModule() {
@@ -789,6 +810,9 @@ async function switchAppModule(moduleName) {
   } else if (moduleName === 'provider-invoices') {
     await loadInvoicesModule();
     await window.initFacturas();
+  } else if (moduleName === 'compra-express') {
+    await loadExpressModule();
+    await window.initCompraExpress();
   } else if (moduleName === 'provider-dashboard') {
     await loadDashboardModule();
     await window.initDashboardProveedores();
