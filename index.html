@@ -676,23 +676,23 @@
             <div class="invoice-tab-panel" data-inv-panel="nota-credito">
               <form id="invNcForm" class="invoice-pago-form" novalidate>
                 <p class="invoice-pago-saldo">Saldo pendiente: <strong id="invNcSaldo">$0.00</strong></p>
-                <label class="invoice-nc-auto">
+                <label class="invoice-pago-full">Número de nota de crédito
+                  <input type="text" id="invNcNumero" maxlength="60" autocomplete="off" required>
+                </label>
+                <div class="invoice-pago-full invoice-nc-productos">
+                  <p class="invoice-nc-productos-title">Productos afectados <span>marca los que devuelve el ajuste</span></p>
+                  <div id="invNcProductos" class="invoice-nc-productos-list"></div>
+                </div>
+                <label class="invoice-pago-full">Motivo
+                  <textarea id="invNcMotivo" rows="2" maxlength="500" required></textarea>
+                </label>
+                <label class="invoice-nc-auto invoice-pago-full">
                   <input type="checkbox" id="invNcAuto" checked>
-                  Valor automático (todo el saldo pendiente)
+                  Valor automático (suma de los productos marcados)
                 </label>
                 <label>Valor de la nota
                   <input type="number" id="invNcValor" step="0.01" min="0.01" inputmode="decimal" required readonly>
                 </label>
-                <label>Número de NC (opcional)
-                  <input type="text" id="invNcNumero" maxlength="60" autocomplete="off">
-                </label>
-                <label class="invoice-pago-full">Motivo
-                  <textarea id="invNcMotivo" rows="2" maxlength="500" required></textarea>
-                </label>
-                <div class="invoice-pago-full invoice-nc-productos">
-                  <p class="invoice-nc-productos-title">Productos que involucra el ajuste <span>(opcional)</span></p>
-                  <div id="invNcProductos" class="invoice-nc-productos-list"></div>
-                </div>
                 <label class="invoice-nc-auto invoice-pago-full">
                   <input type="checkbox" id="invNcNotificar" checked>
                   Avisar al grupo con imagen del detalle

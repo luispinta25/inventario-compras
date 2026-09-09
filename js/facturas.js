@@ -420,9 +420,15 @@
   }
 
   // ---- Nota de crédito -----------------------------------------------------
-  // Reduce el saldo de la factura. Valor automático = saldo pendiente; se puede
-  // ingresar a mano. Puede referenciar los productos que involucra el ajuste.
+  // Flujo: se marcan los productos afectados (cada uno con su valor, por defecto
+  // el costo de la línea, editable), luego el motivo, y el valor de la nota =
+  // suma de esos productos (automático) con opción de ajuste manual. Número y
+  // motivo obligatorios. Nunca puede superar el saldo pendiente.
   const NC_API_SUFFIX = '/notas-credito';
+
+  function ncLineCost(producto) {
+    return Math.round(((Number(producto.cantidad) || 0) * (Number(producto.precio_proveedor) || 0)) * 100) / 100;
+  }
 
   function prepareNcForm(invoice) {
     const form = el('invNcForm');
@@ -435,12 +441,11 @@
     el('invNcMotivo').value = '';
     const valor = el('invNcValor');
     valor.max = String(invoice.saldo_pendiente);
-    valor.value = Number(invoice.saldo_pendiente || 0).toFixed(2);
+    valor.value = '0.00';
     valor.readOnly = true;
-    const settled = !(invoice.saldo_pendiente > 0) || invoice.archivada;
-    el('invNcSubmit').disabled = settled;
-    form.classList.toggle('is-locked', settled);
+    form.classList.toggle('is-locked', !(invoice.saldo_pendiente > 0) || invoice.archivada);
     renderNcProductos();
+    recomputeNcTotal();
   }
 
   function renderNcProductos() {
@@ -455,7 +460,7 @@
       return;
     }
     productos.forEach((producto, index) => {
-      const row = document.createElement('label');
+      const row = document.createElement('div');
       row.className = 'invoice-nc-producto';
       const check = document.createElement('input');
       check.type = 'checkbox';
@@ -463,90 +468,97 @@
       const nombre = document.createElement('span');
       nombre.className = 'invoice-nc-producto-nombre';
       nombre.textContent = `${producto.codigo_producto || '-'} · ${producto.nombre_producto || 'Producto'}`;
-      const valor = document.createElement('span');
+      const valor = document.createElement('input');
+      valor.type = 'number';
+      valor.step = '0.01';
+      valor.min = '0';
+      valor.inputMode = 'decimal';
       valor.className = 'invoice-nc-producto-valor';
       valor.dataset.ncProductoValor = String(index);
-      valor.textContent = '';
+      valor.disabled = true;
       row.append(check, nombre, valor);
       box.appendChild(row);
     });
   }
 
-  function ncValorActual() {
-    const invoice = state.current?.invoice;
-    const saldo = Number(invoice?.saldo_pendiente) || 0;
-    if (el('invNcAuto').checked) return saldo;
-    const parsed = Number(String(el('invNcValor').value).replace(',', '.'));
-    return Number.isFinite(parsed) ? parsed : 0;
+  function ncCheckedRows() {
+    const productos = state.current?.productos || [];
+    return [...el('invNcProductos').querySelectorAll('[data-nc-producto]')]
+      .map((input) => {
+        const i = Number(input.dataset.ncProducto);
+        return { input, i, producto: productos[i], valorInput: el('invNcProductos').querySelector(`[data-nc-producto-valor="${i}"]`) };
+      })
+      .filter((entry) => entry.input.checked && entry.producto && entry.valorInput);
   }
 
-  // Reparte el valor de la NC entre los productos marcados, proporcional a
-  // cantidad x precio; la última línea absorbe el redondeo.
-  function recomputeNcLines() {
-    const productos = state.current?.productos || [];
-    const total = Math.max(0, ncValorActual());
-    const marcados = [...el('invNcProductos').querySelectorAll('[data-nc-producto]')]
-      .map((input, i) => ({ input, i, producto: productos[i] }))
-      .filter((entry) => entry.input.checked && entry.producto);
-    el('invNcProductos').querySelectorAll('[data-nc-producto-valor]').forEach((span) => { span.textContent = ''; });
-    if (!marcados.length || total <= 0) return [];
-    const pesos = marcados.map(({ producto }) =>
-      Math.max(0, (Number(producto.cantidad) || 0) * (Number(producto.precio_proveedor) || 0)));
-    const sumaPesos = pesos.reduce((sum, w) => sum + w, 0);
-    let asignado = 0;
-    const lineas = marcados.map((entry, idx) => {
-      let valor;
-      if (idx === marcados.length - 1) {
-        valor = Math.round((total - asignado) * 100) / 100;
-      } else {
-        const parte = sumaPesos > 0 ? total * (pesos[idx] / sumaPesos) : total / marcados.length;
-        valor = Math.round(parte * 100) / 100;
-        asignado += valor;
-      }
-      const span = el('invNcProductos').querySelector(`[data-nc-producto-valor="${entry.i}"]`);
-      if (span) span.textContent = money(valor);
-      return {
-        detalle_id: entry.producto.id || undefined,
-        codigo: entry.producto.codigo_producto || undefined,
-        nombre: entry.producto.nombre_producto || undefined,
-        valor
-      };
-    });
-    return lineas;
+  function sumNcLines() {
+    return Math.round(ncCheckedRows().reduce((sum, entry) => {
+      const v = Number(String(entry.valorInput.value).replace(',', '.'));
+      return sum + (Number.isFinite(v) && v > 0 ? v : 0);
+    }, 0) * 100) / 100;
+  }
+
+  // Al marcar un producto, su valor de línea arranca en el costo (editable).
+  function onNcProductoToggle(index) {
+    const check = el('invNcProductos').querySelector(`[data-nc-producto="${index}"]`);
+    const valorInput = el('invNcProductos').querySelector(`[data-nc-producto-valor="${index}"]`);
+    const producto = (state.current?.productos || [])[index];
+    if (!check || !valorInput || !producto) return;
+    if (check.checked) {
+      valorInput.disabled = false;
+      if (!valorInput.value) valorInput.value = ncLineCost(producto).toFixed(2);
+    } else {
+      valorInput.disabled = true;
+      valorInput.value = '';
+    }
+    recomputeNcTotal();
+  }
+
+  function recomputeNcTotal() {
+    if (el('invNcAuto').checked) el('invNcValor').value = sumNcLines().toFixed(2);
+    const invoice = state.current?.invoice;
+    el('invNcSubmit').disabled = !invoice || !(invoice.saldo_pendiente > 0) || invoice.archivada;
   }
 
   function syncNcAuto() {
-    const invoice = state.current?.invoice;
     const valor = el('invNcValor');
     if (el('invNcAuto').checked) {
-      valor.value = Number(invoice?.saldo_pendiente || 0).toFixed(2);
       valor.readOnly = true;
+      valor.value = sumNcLines().toFixed(2);
     } else {
       valor.readOnly = false;
       valor.focus();
     }
-    recomputeNcLines();
+  }
+
+  function collectNcProductos() {
+    return ncCheckedRows().map((entry) => {
+      const v = Math.round(Number(String(entry.valorInput.value).replace(',', '.')) * 100) / 100;
+      return {
+        detalle_id: entry.producto.id || undefined,
+        codigo: entry.producto.codigo_producto || undefined,
+        nombre: entry.producto.nombre_producto || undefined,
+        valor: Number.isFinite(v) && v > 0 ? v : 0
+      };
+    });
   }
 
   function validateNc() {
     const invoice = state.current?.invoice;
     if (!invoice) return null;
     const saldo = Number(invoice.saldo_pendiente) || 0;
+    const numero = el('invNcNumero').value.trim();
+    if (!numero) return { error: 'El número de la nota de crédito es obligatorio.' };
+    const productos = collectNcProductos();
+    if (!productos.length) return { error: 'Marca al menos un producto afectado.' };
     const motivo = el('invNcMotivo').value.trim();
     if (motivo.length < 3) return { error: 'Escribe el motivo de la nota de crédito.' };
     const auto = el('invNcAuto').checked;
-    let valor = auto ? saldo : Number(String(el('invNcValor').value).replace(',', '.'));
+    let valor = auto ? sumNcLines() : Number(String(el('invNcValor').value).replace(',', '.'));
     if (!Number.isFinite(valor) || valor <= 0) return { error: 'El valor de la nota de crédito no es válido.' };
-    if (valor > saldo + 0.01) return { error: 'El valor no puede superar el saldo pendiente.' };
+    if (valor > saldo + 0.01) return { error: `El valor no puede superar el saldo pendiente (${money(saldo)}).` };
     valor = Math.min(valor, saldo);
-    return {
-      auto,
-      valor,
-      motivo,
-      numero: el('invNcNumero').value.trim() || undefined,
-      productos: recomputeNcLines(),
-      notificar: el('invNcNotificar').checked
-    };
+    return { auto, valor, motivo, numero, productos, notificar: el('invNcNotificar').checked };
   }
 
   // Imagen (1:1, PNG base64) con el detalle de la NC, para el aviso al grupo.
@@ -736,10 +748,11 @@
       const response = await window.app.posApiRequest(`${API}/${encodeURIComponent(invoice.id)}${NC_API_SUFFIX}`, {
         method: 'POST',
         body: JSON.stringify({
-          valor: parsed.auto ? undefined : parsed.valor,
-          motivo: parsed.motivo,
           numero: parsed.numero,
-          productos: parsed.productos.length ? parsed.productos : undefined
+          valor: parsed.valor,
+          automatica: parsed.auto,
+          motivo: parsed.motivo,
+          productos: parsed.productos
         })
       });
       const data = response?.data || {};
@@ -1182,9 +1195,11 @@
     el('invPagoForm').addEventListener('submit', submitPago);
 
     el('invNcAuto').addEventListener('change', syncNcAuto);
-    el('invNcValor').addEventListener('input', recomputeNcLines);
     el('invNcProductos').addEventListener('change', (event) => {
-      if (event.target.matches('[data-nc-producto]')) recomputeNcLines();
+      if (event.target.matches('[data-nc-producto]')) onNcProductoToggle(Number(event.target.dataset.ncProducto));
+    });
+    el('invNcProductos').addEventListener('input', (event) => {
+      if (event.target.matches('[data-nc-producto-valor]')) recomputeNcTotal();
     });
     el('invNcCancel').addEventListener('click', closeModal);
     el('invNcForm').addEventListener('submit', submitNc);

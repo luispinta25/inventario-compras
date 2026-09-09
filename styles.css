@@ -772,8 +772,8 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .invoice-modal-dialog { position: relative; width: min(720px, 100%); max-height: min(88vh, 900px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-top: 4px solid var(--accent); border-radius: 12px; background: var(--surface); box-shadow: 0 20px 60px rgba(10, 12, 16, .35); }
 .invoice-modal-dialog > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px 12px; }
 .invoice-modal-dialog h2 { margin: 2px 0 0; font-size: 19px; }
-.invoice-modal-tabs { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--line); }
-.invoice-tab { padding: 10px 12px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font: inherit; font-weight: 800; font-size: 13px; cursor: pointer; }
+.invoice-modal-tabs { display: flex; flex-wrap: wrap; gap: 2px 4px; padding: 0 20px; border-bottom: 1px solid var(--line); }
+.invoice-tab { padding: 10px 12px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font: inherit; font-weight: 800; font-size: 13px; white-space: nowrap; cursor: pointer; }
 .invoice-tab.is-active { color: var(--ink); border-bottom-color: var(--accent); }
 .invoice-modal-body { padding: 18px 20px 20px; overflow-y: auto; }
 .invoice-tab-panel { display: none; }
@@ -811,7 +811,8 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .invoice-nc-productos-list .invoice-nc-producto { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; padding: 3px 2px; color: var(--ink); }
 .invoice-nc-productos-list .invoice-nc-producto input[type="checkbox"] { height: auto; width: auto; flex: none; }
 .invoice-nc-producto .invoice-nc-producto-nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.invoice-nc-producto .invoice-nc-producto-valor { font-variant-numeric: tabular-nums; color: var(--muted); }
+.invoice-pago-form .invoice-nc-productos-list .invoice-nc-producto-valor { flex: none; width: 92px; height: 32px; padding: 0 8px; text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; }
+.invoice-pago-form .invoice-nc-productos-list .invoice-nc-producto-valor:disabled { background: #f1f3f5; color: #9aa1a8; }
 .invoice-nc-productos-empty { margin: 0; font-size: 13px; color: var(--muted); }
 
 @media (max-width: 620px) {
