@@ -435,13 +435,22 @@ main { width: min(1500px, calc(100% - 32px)); margin: 24px auto 48px; }
    anclado arriba, franjas alternas y separador marcado, para no confundir a
    qué producto pertenece cada control de recepción / validación. */
 #itemsSection #itemsBody > tr > td { vertical-align: top; border-bottom: 2px solid #d5dbe1; }
-#itemsSection #itemsBody > tr:nth-child(even) > td { background: #f6f8fa; }
+/* Franjas alternas por JS (.row-alt): las pseudo-filas no cuentan. */
+#itemsSection #itemsBody > tr.row-alt > td { background: #f6f8fa; }
 #itemsSection #itemsBody > tr:hover > td { background: #eef4fb; }
 #itemsSection #itemsBody > tr:last-child > td { border-bottom: 0; }
 #itemsSection thead th { vertical-align: bottom; }
 /* Precio de venta por debajo del sugerido 38% -> fila en rojo tenue. */
 #itemsSection #itemsBody > tr.line-below-suggested > td { background: #fdecec; }
 #itemsSection #itemsBody > tr.line-below-suggested:hover > td { background: #fbdede; }
+/* Pseudo-fila de detalle (desglose de unidades / cambio de presentación). */
+#itemsSection #itemsBody > tr.has-subrow > td { border-bottom: 0; }
+#itemsSection #itemsBody > tr.line-subrow > td { background: #eef3fb; border-bottom: 2px solid #d5dbe1; padding: 4px 13px 9px; }
+#itemsSection #itemsBody > tr.line-below-suggested + tr.line-subrow > td { background: #fbe4e4; }
+.line-subrow-inner { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 16px; font-size: 11.5px; color: #37424e; }
+.line-subrow-inner > i { color: #6b7a89; }
+.line-subrow-chip { display: inline-flex; flex-direction: column; line-height: 1.2; font-weight: 800; font-variant-numeric: tabular-nums; }
+.line-subrow-chip small { font-size: 9px; font-weight: 700; color: #7a8794; text-transform: uppercase; letter-spacing: .04em; }
 .pending-count { color: #805500; font-size: 13px; font-weight: 750; }
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
 table { width: 100%; min-width: 1040px; border-collapse: collapse; }
@@ -956,7 +965,7 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .line-action-btn { width: 26px; height: 26px; padding: 0; border: 1px solid #c7cdd3; border-radius: 4px; background: #fff; color: #55606a; cursor: pointer; }
 .line-action-btn:hover { background: var(--soft); color: #262b31; }
 .line-action-btn[data-line-action="quitar"]:hover { border-color: #c54848; color: #9b2c2c; }
-.line-actions.has-desglose .line-action-btn[data-line-action="unidades"] { border-color: #2b9b5c; background: #def7e7; color: #146b3a; }
+.line-action-btn.is-active { border-color: #2b9b5c; background: #def7e7; color: #146b3a; }
 
 .register-payment { margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: 8px; background: var(--soft); }
 .register-payment[hidden] { display: none; }

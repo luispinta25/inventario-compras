@@ -315,6 +315,78 @@
     });
   }
 
+  // ======================= Modal: cambiar presentación ==================
+  // SOLO interno: la línea entra al inventario con otra cantidad / unidad /
+  // costo que la facturada (ej. 3 KILOS -> 360 UNIDADES). El factor se escribe
+  // a mano por línea (no hay valor fijo). La factura no se altera.
+  const presentacion = { grid: null, resolver: null, unidad: 'UNIDADES' };
+
+  function openPresentacion(current) {
+    return new Promise((resolve) => {
+      presentacion.resolver = resolve;
+      presentacion._current = current;
+      const existing = current.presentacion || null;
+      const recibida = Number(current.cantidad_recibida) || 0;
+      presentacion.unidad = (existing?.unidad_paquete || current.unidad_actual || 'UNIDADES').toUpperCase();
+      $('presTitulo').textContent = `${current.codigo || ''} · ${current.nombre || ''}`;
+      $('presFacturado').textContent =
+        `Facturado: ${current.cantidad_facturada} · recibidas: ${recibida}`;
+      $('presFactor').value = '';
+      $('presCantidad').value = existing?.cantidad_inventario
+        ? String(existing.cantidad_inventario)
+        : String(recibida || '');
+      $('presError').textContent = '';
+      $('presQuitar').hidden = !existing;
+      presentacion.grid.select(presentacion.unidad);
+      syncPresentacion();
+      $('presModal').hidden = false;
+      window.setTimeout(() => $('presCantidad').focus(), 60);
+    });
+  }
+
+  function syncPresentacion() {
+    const current = presentacion._current || {};
+    const recibida = Number(current.cantidad_recibida) || 0;
+    const costo = Number(current.costo) || 0;
+    const total = Number($('presCantidad').value) || 0;
+    const costUnit = total > 0 ? round((recibida * costo) / total, 4) : 0;
+    $('presResumen').textContent = total > 0
+      ? `${recibida} recibidas → ${total} ${presentacion.unidad} en inventario · costo unitario ${money(costUnit)}`
+      : 'Indica cuántas unidades entran al inventario.';
+  }
+
+  function onPresFactorInput() {
+    const current = presentacion._current || {};
+    const recibida = Number(current.cantidad_recibida) || 0;
+    const factor = Number($('presFactor').value) || 0;
+    if (factor > 0 && recibida > 0) {
+      $('presCantidad').value = String(round(recibida * factor, 3));
+    }
+    syncPresentacion();
+  }
+
+  function closePresentacion(result) {
+    $('presModal').hidden = true;
+    const resolver = presentacion.resolver;
+    presentacion.resolver = null;
+    if (resolver) resolver(result || null);
+  }
+
+  function confirmPresentacion() {
+    const current = presentacion._current || {};
+    const total = Number($('presCantidad').value);
+    if (!(total > 0)) return void ($('presError').textContent = 'La cantidad para inventario debe ser mayor a 0.');
+    if (total === Number(current.cantidad_recibida)) {
+      return void ($('presError').textContent = 'Esa es la misma cantidad facturada; no hace falta cambiar la presentación.');
+    }
+    closePresentacion({
+      apply: {
+        cantidad_inventario: round(total, 3),
+        unidad_paquete: presentacion.unidad
+      }
+    });
+  }
+
   // ======================= Acciones por fila =============================
   // Llamado desde renderItems (app.js). item = linea del draft; rerender = redibuja.
   async function rowAction(action, { item, rerender }) {
@@ -388,6 +460,39 @@
       const result = await openUnidades(current);
       if (!result) return;
       item.desglose = result.remove ? null : result.apply;
+      if (item.desglose) item.presentacion = null; // excluyentes
+      rerender();
+      return;
+    }
+    if (action === 'presentacion') {
+      if (item.recepcion_estado === 'NO_RECIBIDO') return;
+      const linked = item.match?.inventory;
+      const nuevo = item.nuevo_producto;
+      const quantity = Number(item.quantity) || 0;
+      const recibida = item.recepcion_estado === 'PARCIAL'
+        ? Number(item.cantidad_recibida) || 0
+        : quantity;
+      const current = {
+        codigo: nuevo?.codigo || linked?.codigo || item.internal_code || '',
+        nombre: (item.line_overrides?.nombre || nuevo?.nombre || linked?.producto || item.description || ''),
+        costo: Number(item.unit_cost) || 0,
+        cantidad_facturada: quantity,
+        cantidad_recibida: recibida,
+        unidad_actual: item.line_overrides?.unidad_paquete || nuevo?.unidad_paquete || linked?.unidad_paquete || 'UNIDADES',
+        presentacion: item.presentacion || null
+      };
+      const result = await openPresentacion(current);
+      if (!result) return;
+      if (result.remove) {
+        item.presentacion = null;
+      } else {
+        item.presentacion = result.apply;
+        item.desglose = null; // excluyentes
+        // El precio de venta pasa a ser por unidad de inventario: se re-sugiere.
+        item.sale_margin_percent = 38;
+        item.sale_price = null;
+        item._priceForCode = undefined;
+      }
       rerender();
     }
   }
@@ -454,6 +559,12 @@
           nombre: item.desglose.nombre || null,
           zona: item.desglose.zona || null,
           precio_venta_unitario: round(Number(item.desglose.precio_venta_unitario) || 0, 2)
+        };
+      }
+      if (item.presentacion) {
+        base.presentacion = {
+          cantidad_inventario: round(Number(item.presentacion.cantidad_inventario) || 0, 3),
+          unidad_paquete: item.presentacion.unidad_paquete || 'UNIDADES'
         };
       }
       return base;
@@ -666,11 +777,23 @@
       if (event.target === $('unidadesModal')) closeUnidades(null);
     });
 
+    presentacion.grid = buildButtonGrid($('presUnidad'), EMPAQUE_OPTIONS, (v) => v, (v) => { presentacion.unidad = v; syncPresentacion(); });
+    $('presCantidad').addEventListener('input', syncPresentacion);
+    $('presFactor').addEventListener('input', onPresFactorInput);
+    $('presCancel').addEventListener('click', () => closePresentacion(null));
+    $('presClose').addEventListener('click', () => closePresentacion(null));
+    $('presConfirm').addEventListener('click', confirmPresentacion);
+    $('presQuitar').addEventListener('click', () => closePresentacion({ remove: true }));
+    $('presModal').addEventListener('mousedown', (event) => {
+      if (event.target === $('presModal')) closePresentacion(null);
+    });
+
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
       if (!$('newProductModal').hidden) closeNewProduct(null);
       else if (!$('editLineModal').hidden) closeEditLine(null);
       else if (!$('unidadesModal').hidden) closeUnidades(null);
+      else if (!$('presModal').hidden) closePresentacion(null);
     }, true);
   }
 

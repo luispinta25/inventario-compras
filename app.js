@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260910.9';
+const APP_BUILD = '20260910.10';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -1722,10 +1722,62 @@ function createCell(row, value, className = '') {
   return cell;
 }
 
+// Pseudo-fila informativa bajo una línea con desglose de unidades o cambio de
+// presentación. Solo lectura: detalla lo que entra al inventario.
+function renderLineSubrow(item) {
+  const desglose = item.desglose || null;
+  const presentacion = item.presentacion || null;
+  if (!desglose && !presentacion) return null;
+  const billed = Number(item.quantity) || 0;
+  const recibida = item.recepcion_estado === 'PARCIAL'
+    ? Number(item.cantidad_recibida) || 0
+    : billed;
+  const tr = document.createElement('tr');
+  tr.className = 'line-subrow';
+  const cell = document.createElement('td');
+  cell.colSpan = 10;
+  const wrap = document.createElement('div');
+  wrap.className = 'line-subrow-inner';
+  const arrow = document.createElement('i');
+  arrow.className = 'fa-solid fa-turn-up fa-rotate-90';
+  arrow.setAttribute('aria-hidden', 'true');
+  wrap.appendChild(arrow);
+  const chip = (label, value) => {
+    const span = document.createElement('span');
+    span.className = 'line-subrow-chip';
+    const small = document.createElement('small');
+    small.textContent = label;
+    span.append(small, document.createTextNode(String(value)));
+    wrap.appendChild(span);
+  };
+  if (presentacion) {
+    const invQty = Number(presentacion.cantidad_inventario) || 0;
+    const costUnit = invQty > 0 ? (recibida * (Number(item.unit_cost) || 0)) / invQty : 0;
+    chip('Presentación', desglose ? '' : (item.internal_code || item.match?.inventory?.codigo || ''));
+    chip('Facturado', number(billed));
+    chip('A inventario', `${number(invQty)} ${presentacion.unidad_paquete}`);
+    chip('Costo unit.', money(costUnit));
+  } else {
+    const upp = Number(desglose.unidades_por_paquete) || 0;
+    const paq = Number(desglose.paquetes) || 0;
+    chip('Añadir unidades', desglose.codigo || '');
+    chip('Paquetes facturados', number(billed));
+    chip('Desglosados', `${number(paq)} de ${number(recibida)}`);
+    chip('Unidades nuevas', number(Math.round(paq * upp * 1000) / 1000));
+    if (desglose.precio_venta_unitario) chip('Venta unit.', money(desglose.precio_venta_unitario));
+  }
+  cell.appendChild(wrap);
+  tr.appendChild(cell);
+  return tr;
+}
+
 function renderItems(items) {
   elements.itemsBody.replaceChildren();
+  let stripe = 0;
   items.forEach((item) => {
     const row = document.createElement('tr');
+    if (stripe % 2 === 1) row.classList.add('row-alt');
+    stripe += 1;
     createCell(row, item.line);
     createCell(row, item.provider_primary_code || item.provider_auxiliary_code || 'Sin código', 'code-value');
     createCell(row, item.description || 'Sin descripción', 'product-description');
@@ -1858,9 +1910,15 @@ function renderItems(items) {
 
     const calculateXmlSalePrice = (gain) => {
       const quantity = Number(item.quantity) || 1;
-      const unitNetCost = Number(item.subtotal) > 0
-        ? Number(item.subtotal) / quantity
-        : Number(item.unit_cost) || 0;
+      const totalNet = Number(item.subtotal) > 0
+        ? Number(item.subtotal)
+        : (Number(item.unit_cost) || 0) * quantity;
+      // Si la línea cambia de presentación, el costo se reparte entre las
+      // unidades que entran al inventario, no entre las facturadas.
+      const invQty = Number(item.presentacion?.cantidad_inventario) > 0
+        ? Number(item.presentacion.cantidad_inventario)
+        : quantity;
+      const unitNetCost = invQty > 0 ? totalNet / invQty : 0;
       return Math.round(unitNetCost * 1.15 * 1.05 * (1 + Number(gain) / 100) * 100) / 100;
     };
 
@@ -1921,7 +1979,9 @@ function renderItems(items) {
         if (item._priceForCode !== match.inventory.codigo) {
           item._priceForCode = match.inventory.codigo;
           const precioActual = Number(match.inventory?.precio);
-          if (!isNew && Number.isFinite(precioActual) && precioActual > 0) {
+          // Si la línea cambia de presentación, el precio actual (por la unidad
+          // vieja) ya no aplica: se sugiere al 38% por unidad de inventario.
+          if (!isNew && !item.presentacion && Number.isFinite(precioActual) && precioActual > 0) {
             item.sale_price = Math.round(precioActual * 100) / 100;
             item.sale_margin_percent = 'manual';
           } else {
@@ -2229,10 +2289,13 @@ function renderItems(items) {
     } else {
       addAction('nuevo', 'fa-plus', 'Crear producto nuevo (código manual)');
       addAction('editar', 'fa-pen-to-square', 'Editar nombre, zona, empaquetado y precio');
-      addAction('unidades', 'fa-boxes-packing', item.desglose ? 'Desglose de unidades (activo)' : 'Añadir unidades');
+      addAction('unidades', 'fa-boxes-packing', item.desglose ? 'Añadir unidades (activo)' : 'Añadir unidades');
+      addAction('presentacion', 'fa-arrow-right-arrow-left',
+        item.presentacion ? 'Cambiar presentación (activo)' : 'Cambiar presentación para inventario');
       addAction('quitar', 'fa-trash', 'No recibí este producto');
     }
-    if (item.desglose) actionsWrap.classList.add('has-desglose');
+    if (item.desglose) actionsWrap.querySelector('[data-line-action="unidades"]')?.classList.add('is-active');
+    if (item.presentacion) actionsWrap.querySelector('[data-line-action="presentacion"]')?.classList.add('is-active');
     actionsCell.addEventListener('click', async (event) => {
       const button = event.target.closest('[data-line-action]');
       if (!button) return;
@@ -2280,8 +2343,11 @@ function renderItems(items) {
       refreshActionInfo();
     }
     row.appendChild(actionsCell);
+    if (item.desglose || item.presentacion) row.classList.add('has-subrow');
 
     elements.itemsBody.appendChild(row);
+    const subrow = renderLineSubrow(item);
+    if (subrow) elements.itemsBody.appendChild(subrow);
   });
 }
 

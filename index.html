@@ -1204,6 +1204,46 @@
     </section>
   </div>
 
+  <div class="reg-modal" id="presModal" hidden>
+    <section class="reg-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="presTituloH">
+      <header>
+        <div>
+          <p class="section-kicker">Cambio de presentación · solo interno</p>
+          <h2 id="presTituloH">Cambiar presentación</h2>
+        </div>
+        <button type="button" class="icon-button" id="presClose" title="Cerrar" aria-label="Cerrar">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+      </header>
+      <div class="reg-modal-body reg-modal-body-2col">
+        <p class="reg-readonly-row reg-span-2">
+          <span id="presTitulo">—</span>
+          <span id="presFacturado">—</span>
+        </p>
+        <div class="reg-modal-col">
+          <div class="reg-field-row">
+            <label>Cantidad total a inventario<input type="number" id="presCantidad" min="0" step="any" inputmode="decimal"></label>
+            <label>Factor (× por lo facturado)<input type="number" id="presFactor" min="0" step="any" inputmode="decimal" placeholder="opcional"></label>
+          </div>
+          <p class="reg-hint">La factura del proveedor se registra intacta (cantidades y totales no cambian). Esto solo ajusta lo que entra al inventario en este producto. El precio de venta unitario se elige en la fila.</p>
+        </div>
+        <div class="reg-modal-col">
+          <p class="reg-field-label">Presentación en inventario</p>
+          <div class="reg-chip-grid" id="presUnidad"></div>
+          <p class="reg-hint" id="presResumen"></p>
+        </div>
+        <p class="reg-modal-error reg-span-2" id="presError" aria-live="polite"></p>
+      </div>
+      <footer>
+        <button type="button" class="button button-danger" id="presQuitar" hidden>Quitar presentación</button>
+        <button type="button" class="button button-secondary" id="presCancel">Cancelar</button>
+        <button type="button" class="button button-primary" id="presConfirm">
+          <i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i> Aplicar
+        </button>
+      </footer>
+    </section>
+  </div>
+
   <div class="app-dialog" id="appDialog" hidden>
     <div class="app-dialog-box" role="alertdialog" aria-modal="true" aria-labelledby="appDialogText">
       <p id="appDialogText"></p>
