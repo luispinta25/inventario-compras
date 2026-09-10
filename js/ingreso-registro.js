@@ -11,6 +11,9 @@
 (function () {
   const PCT_OPTIONS = [20, 28, 30, 35, 38, 45, 50];
   const DEFAULT_PCT = 38;
+  // Al desglosar / cambiar presentación, la unidad suelta se vende un 30% más
+  // cara que su parte proporcional del precio de la caja (la caja va "en promo").
+  const DESGLOSE_MARKUP = 1.30;
   const EMPAQUE_OPTIONS = [
     'CAJA', 'UNIDADES', 'PAQUETES', 'PAR', 'DOCENA', 'MEDIA DOCENA', 'CIENTOS',
     'MILLAR', 'GRUESA', 'FUNDA', 'BLISTER', 'PACK', 'JUEGO', 'KIT', 'SET',
@@ -215,7 +218,9 @@
     if (hit) {
       unidades.existe = true;
       const nombre = hit.producto || hit.nombre || '';
-      setUnidadesEstado(`Ya existe: ${nombre} · se actualizará stock, costo y precio (el nombre no cambia).`, 'ok');
+      const precioActual = Number(hit.precio);
+      const precioTxt = Number.isFinite(precioActual) && precioActual > 0 ? ` (venta actual ${money(precioActual)})` : '';
+      setUnidadesEstado(`Ya existe: ${nombre}${precioTxt} · se actualizará stock, costo y precio (el nombre no cambia).`, 'ok');
       $('unNombre').value = nombre.toUpperCase();
       $('unNombre').readOnly = true;
     } else {
@@ -271,14 +276,14 @@
     const cost = Number(current.costo) || 0;
     const ventaPaquete = Number(current.precio_venta) || 0;
     const costUnit = upp > 0 ? round(cost / upp, 4) : 0;
-    const sugVenta = upp > 0 ? round((ventaPaquete / upp) * 2, 2) : 0;
+    const sugVenta = upp > 0 ? round((ventaPaquete / upp) * DESGLOSE_MARKUP, 2) : 0;
     $('unResumen').textContent = upp > 0
       ? `${paquetes} paq. → ${round(paquetes * upp, 3)} unidades · costo unitario ${money(costUnit)}`
       : 'Indica cuántas unidades vienen por paquete.';
     const input = $('unPrecioVenta');
     if (!input.dataset.touched && sugVenta > 0) input.value = sugVenta.toFixed(2);
     $('unPrecioVentaHint').textContent = sugVenta > 0
-      ? `Sugerido ${money(sugVenta)} (venta del paquete ÷ ${upp} × 2, editable)`
+      ? `Sugerido ${money(sugVenta)} (precio actual ${money(ventaPaquete)} ÷ ${upp} + 30%, editable)`
       : '';
   }
 
@@ -352,16 +357,20 @@
     const current = presentacion._current || {};
     const recibida = Number(current.cantidad_recibida) || 0;
     const costo = Number(current.costo) || 0;
+    const ventaActual = Number(current.precio_venta) || 0;
     const total = Number($('presCantidad').value) || 0;
     const costUnit = total > 0 ? round((recibida * costo) / total, 4) : 0;
     $('presResumen').textContent = total > 0
       ? `${recibida} recibidas → ${total} ${presentacion.unidad} en inventario · costo unitario ${money(costUnit)}`
       : 'Indica cuántas unidades entran al inventario.';
-    const sug = costUnit > 0 ? computeSalePrice(costUnit, DEFAULT_PCT) : 0;
+    // Sugerido: precio actual repartido entre las unidades que entran + 30%.
+    const sug = (total > 0 && recibida > 0 && ventaActual > 0)
+      ? round((ventaActual * recibida / total) * DESGLOSE_MARKUP, 2)
+      : (costUnit > 0 ? computeSalePrice(costUnit, DEFAULT_PCT) : 0);
     const input = $('presPrecioVenta');
     if (!input.dataset.touched && sug > 0) input.value = sug.toFixed(2);
     $('presPrecioVentaHint').textContent = sug > 0
-      ? `Sugerido ${money(sug)} (38% sobre el costo unitario, editable)`
+      ? `Sugerido ${money(sug)} (precio actual ${money(ventaActual)} ÷ ${total > 0 && recibida > 0 ? round(total / recibida, 2) : '—'} + 30%, editable)`
       : '';
   }
 
@@ -489,6 +498,7 @@
         codigo: nuevo?.codigo || linked?.codigo || item.internal_code || '',
         nombre: (item.line_overrides?.nombre || nuevo?.nombre || linked?.producto || item.description || ''),
         costo: Number(item.unit_cost) || 0,
+        precio_venta: Number(item.sale_price) || Number(linked?.precio) || 0,
         cantidad_facturada: quantity,
         cantidad_recibida: recibida,
         unidad_actual: item.line_overrides?.unidad_paquete || nuevo?.unidad_paquete || linked?.unidad_paquete || 'UNIDADES',
