@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260909.23';
+const APP_BUILD = '20260910.1';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -28,7 +28,10 @@ const elements = Object.fromEntries([
   'loadingRow', 'errorBanner', 'review', 'validationBanner', 'validationIcon',
   'validationTitle', 'validationText', 'itemsBody', 'warningsSection', 'warningsList',
   'resetButton', 'downloadButton', 'copyKeyButton', 'providerMatchState',
-  'continueEntryButton', 'saveToPendingButton', 'providerLinkSection', 'providerLinkButton',
+  'registerInvoiceButton', 'registerPaymentBlock', 'regTipoPago', 'regMetodoWrap',
+  'regMetodoPago', 'regVencimiento', 'regReferencia', 'regSubtotal', 'regDescuento',
+  'regIva', 'regTotal',
+  'saveToPendingButton', 'providerLinkSection', 'providerLinkButton',
   'invoiceFields', 'providerLinkModal', 'providerLinkCloseButton', 'providerLinkCancelButton',
   'providerLinkConfirmButton', 'providerLinkSearchInput', 'providerLinkGrid',
   'providerLinkModalStatus', 'providerLinkXmlName', 'providerLinkXmlTaxId',
@@ -727,6 +730,26 @@ function loadExpressModule() {
     document.body.appendChild(script);
   });
   return expressModuleRequest;
+}
+
+let registerModuleRequest = null;
+
+function loadRegisterModule() {
+  if (typeof window.initIngresoRegistro === 'function') return Promise.resolve();
+  if (registerModuleRequest) return registerModuleRequest;
+  registerModuleRequest = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `js/ingreso-registro.js?v=${APP_BUILD}`;
+    script.dataset.module = 'ingreso-registro';
+    script.onload = () => resolve();
+    script.onerror = () => {
+      registerModuleRequest = null;
+      script.remove();
+      reject(new Error('No se pudo cargar el registro de factura.'));
+    };
+    document.body.appendChild(script);
+  });
+  return registerModuleRequest;
 }
 
 let dashboardModuleRequest = null;
@@ -1709,11 +1732,15 @@ function renderItems(items) {
     const quantityCell = document.createElement('td');
     quantityCell.className = 'number xml-receipt-cell';
     const billedQuantity = Number(item.quantity) || 0;
-    const receiptState = item.recepcion_estado === 'INCOMPLETA' ? 'INCOMPLETA' : 'COMPLETA';
-    if (!item.recepcion_estado) item.recepcion_estado = receiptState;
-    if (item.cantidad_recibida === undefined || item.cantidad_recibida === null) {
-      item.cantidad_recibida = billedQuantity;
+    // Migración del estado antiguo de 2 valores a 3 (COMPLETA / PARCIAL / NO_RECIBIDO).
+    if (item.recepcion_estado === 'INCOMPLETA') item.recepcion_estado = 'PARCIAL';
+    if (!['COMPLETA', 'PARCIAL', 'NO_RECIBIDO'].includes(item.recepcion_estado)) {
+      item.recepcion_estado = 'COMPLETA';
     }
+    if (item.cantidad_recibida === undefined || item.cantidad_recibida === null) {
+      item.cantidad_recibida = item.recepcion_estado === 'NO_RECIBIDO' ? 0 : billedQuantity;
+    }
+    const rerenderRows = () => { renderItems(items); updateContinueEntryState(); };
     const quantityLabel = document.createElement('strong');
     quantityLabel.textContent = number(billedQuantity);
     const quantityCaption = document.createElement('small');
@@ -1723,60 +1750,74 @@ function renderItems(items) {
     quantitySummary.append(quantityLabel, quantityCaption);
     const receiptButtons = document.createElement('div');
     receiptButtons.className = 'xml-receipt-buttons';
-    const completeButton = document.createElement('button');
-    completeButton.type = 'button';
-    completeButton.className = 'xml-receipt-button complete';
-    completeButton.title = 'Recibí toda la cantidad y está en buen estado';
-    completeButton.setAttribute('aria-label', completeButton.title);
-    completeButton.innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i>';
-    const incompleteButton = document.createElement('button');
-    incompleteButton.type = 'button';
-    incompleteButton.className = 'xml-receipt-button incomplete';
-    incompleteButton.title = 'Recibí una cantidad diferente o hay novedades';
-    incompleteButton.setAttribute('aria-label', incompleteButton.title);
-    incompleteButton.innerHTML = '<i class="fa-solid fa-xmark" aria-hidden="true"></i>';
-    receiptButtons.append(completeButton, incompleteButton);
+    const makeReceiptButton = (state, iconClass, title) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `xml-receipt-button state-${state.toLowerCase()}`;
+      button.dataset.state = state;
+      button.title = title;
+      button.setAttribute('aria-label', title);
+      button.innerHTML = `<i class="fa-solid ${iconClass}" aria-hidden="true"></i>`;
+      return button;
+    };
+    const completeButton = makeReceiptButton('COMPLETA', 'fa-check', 'Recibí toda la cantidad');
+    const partialButton = makeReceiptButton('PARCIAL', 'fa-scale-unbalanced', 'Recibí menos de lo facturado');
+    const noneButton = makeReceiptButton('NO_RECIBIDO', 'fa-ban', 'No recibí este producto');
+    receiptButtons.append(completeButton, partialButton, noneButton);
     const receivedInput = document.createElement('input');
     receivedInput.type = 'number';
     receivedInput.className = 'xml-received-quantity';
     receivedInput.min = '0';
     receivedInput.max = String(billedQuantity);
-    receivedInput.step = '1';
-    receivedInput.inputMode = 'numeric';
+    receivedInput.step = 'any';
+    receivedInput.inputMode = 'decimal';
     receivedInput.placeholder = 'Recibidas';
-    receivedInput.value = item.recepcion_estado === 'INCOMPLETA' && item.cantidad_recibida !== null
+    receivedInput.value = item.recepcion_estado === 'PARCIAL' && item.cantidad_recibida != null
       ? String(item.cantidad_recibida)
       : '';
     const noteInput = document.createElement('input');
     noteInput.type = 'text';
     noteInput.className = 'xml-receipt-note';
     noteInput.maxLength = 500;
-    noteInput.placeholder = item.recepcion_estado === 'INCOMPLETA' ? 'Motivo obligatorio' : 'Nota (opcional)';
+    noteInput.placeholder = 'Motivo obligatorio';
     noteInput.value = item.nota_recepcion || '';
     const refreshReceiptControls = () => {
-      const incomplete = item.recepcion_estado === 'INCOMPLETA';
-      completeButton.classList.toggle('selected', !incomplete);
-      incompleteButton.classList.toggle('selected', incomplete);
-      receivedInput.hidden = !incomplete;
-      receivedInput.required = incomplete;
-      noteInput.required = incomplete;
-      noteInput.placeholder = incomplete ? 'Motivo obligatorio' : 'Nota (opcional)';
-      receivedInput.classList.toggle('invalid', incomplete && (!Number.isFinite(Number(item.cantidad_recibida))
-        || Number(item.cantidad_recibida) < 0 || Number(item.cantidad_recibida) > billedQuantity));
-      noteInput.classList.toggle('invalid', incomplete && !String(item.nota_recepcion || '').trim());
+      const partial = item.recepcion_estado === 'PARCIAL';
+      const none = item.recepcion_estado === 'NO_RECIBIDO';
+      [completeButton, partialButton, noneButton].forEach((button) => {
+        button.classList.toggle('selected', button.dataset.state === item.recepcion_estado);
+      });
+      receivedInput.hidden = !partial;
+      receivedInput.required = partial;
+      noteInput.hidden = !(partial || none);
+      noteInput.required = partial || none;
+      const received = Number(item.cantidad_recibida);
+      receivedInput.classList.toggle('invalid', partial && (!Number.isFinite(received)
+        || received <= 0 || received >= billedQuantity));
+      noteInput.classList.toggle('invalid', (partial || none) && String(item.nota_recepcion || '').trim().length < 3);
     };
     completeButton.addEventListener('click', () => {
+      const wasNone = item.recepcion_estado === 'NO_RECIBIDO';
       item.recepcion_estado = 'COMPLETA';
       item.cantidad_recibida = billedQuantity;
+      if (wasNone) return void rerenderRows();
       refreshReceiptControls();
       updateContinueEntryState();
     });
-    incompleteButton.addEventListener('click', () => {
-      item.recepcion_estado = 'INCOMPLETA';
-      if (item.cantidad_recibida === billedQuantity) item.cantidad_recibida = null;
+    partialButton.addEventListener('click', () => {
+      const wasNone = item.recepcion_estado === 'NO_RECIBIDO';
+      item.recepcion_estado = 'PARCIAL';
+      if (item.cantidad_recibida === billedQuantity || item.cantidad_recibida === 0) item.cantidad_recibida = null;
       receivedInput.value = item.cantidad_recibida ?? '';
+      if (wasNone) return void rerenderRows();
       refreshReceiptControls();
       updateContinueEntryState();
+    });
+    noneButton.addEventListener('click', () => {
+      item.recepcion_estado = 'NO_RECIBIDO';
+      item.cantidad_recibida = 0;
+      item.desglose = null;
+      rerenderRows();
     });
     receivedInput.addEventListener('input', () => {
       item.cantidad_recibida = receivedInput.value === '' ? null : Number(receivedInput.value);
@@ -1824,10 +1865,21 @@ function renderItems(items) {
       const match = item.match || {};
       const icon = document.createElement('i');
       icon.setAttribute('aria-hidden', 'true');
-      if (match.status === 'MATCHED' && match.inventory) {
-        message.className = 'line-status matched internal-sku-message';
-        icon.className = 'fa-solid fa-link';
-        message.replaceChildren(icon, document.createTextNode(` ${match.inventory.codigo} · ${match.inventory.producto}`));
+      if (item.recepcion_estado === 'NO_RECIBIDO') {
+        message.className = 'line-status error internal-sku-message';
+        icon.className = 'fa-solid fa-ban';
+        message.replaceChildren(icon, document.createTextNode(' No recibido: no entra a inventario'));
+        salePreview.replaceChildren();
+        suggestions.replaceChildren();
+        return;
+      }
+      if (((match.status === 'MATCHED' || match.status === 'NEW') && match.inventory)) {
+        const isNew = match.status === 'NEW';
+        message.className = `line-status ${isNew ? 'checking' : 'matched'} internal-sku-message`;
+        icon.className = isNew ? 'fa-solid fa-wand-magic-sparkles' : 'fa-solid fa-link';
+        message.replaceChildren(icon, document.createTextNode(
+          `${isNew ? ' Se creará ' : ' '}${match.inventory.codigo} · ${match.inventory.producto}`
+        ));
         salePreview.replaceChildren();
         const label = document.createElement('label');
         label.textContent = 'Ganancia';
@@ -1885,14 +1937,17 @@ function renderItems(items) {
         label.append(' ', select);
         salePreview.append(label, price);
       } else if (match.status === 'CHECKING') {
+        salePreview.replaceChildren();
         message.className = 'line-status checking internal-sku-message';
         icon.className = 'fa-solid fa-circle-notch fa-spin';
         message.replaceChildren(icon, document.createTextNode(' Buscando SKU...'));
       } else if (match.status === 'ERROR') {
+        salePreview.replaceChildren();
         message.className = 'line-status error internal-sku-message';
         icon.className = 'fa-solid fa-triangle-exclamation';
         message.replaceChildren(icon, document.createTextNode(` ${match.message || 'SKU no encontrado'}`));
       } else {
+        salePreview.replaceChildren();
         message.className = 'line-status internal-sku-message';
         icon.className = 'fa-solid fa-barcode';
         message.replaceChildren(icon, document.createTextNode(' Pendiente de vincular'));
@@ -1979,24 +2034,135 @@ function renderItems(items) {
       }, 180);
     };
 
-    input.addEventListener('input', () => {
-      item.match = { status: 'PENDING', inventory_id: null, inventory: null };
+    // Búsqueda numérica: 4+ dígitos solo números -> vincula el código exacto con
+    // debounce; 6+ dígitos sin coincidencia -> abre el modal de producto nuevo.
+    let numericTimer;
+    const linkInventory = (inventory) => {
+      if (!inventory) return;
+      input.value = inventory.codigo;
+      item.internal_code = inventory.codigo;
+      item.nuevo_producto = null;
+      item.match = { status: 'MATCHED', inventory_id: inventory.id, inventory };
+      suggestions.replaceChildren();
       renderMatch();
       updateContinueEntryState();
-      searchProducts();
+    };
+    const openNewProductForLine = async (code) => {
+      try {
+        if (typeof window.ingresoRegistro?.openNewProduct !== 'function') {
+          await loadRegisterModule();
+          await window.initIngresoRegistro();
+        }
+      } catch (_) { return; }
+      const created = await window.ingresoRegistro.openNewProduct({
+        code, description: item.description, cost: Number(item.unit_cost) || 0
+      });
+      if (!created || input.value.trim() !== code) return;
+      item.nuevo_producto = created;
+      item.internal_code = created.codigo;
+      // El precio de venta y el % de ganancia se eligen en el control "Ganancia"
+      // de la fila (renderMatch pone 38% por defecto).
+      item.match = { status: 'NEW', inventory: { id: null, codigo: created.codigo, producto: created.nombre } };
+      input.value = created.codigo;
+      suggestions.replaceChildren();
+      renderMatch();
+      updateContinueEntryState();
+    };
+    const scheduleNumericResolve = (query) => {
+      window.clearTimeout(numericTimer);
+      numericTimer = window.setTimeout(async () => {
+        if (input.value.trim() !== query) return;
+        const cached = internalProductLookupCache.get(query)
+          || internalProductCatalog.find((product) => String(product.codigo) === query);
+        if (cached) return void linkInventory(cached);
+        try {
+          const response = await posApiRequest(`/api/purchases/v2/inventory/lookup?${new URLSearchParams({ code: query })}`, { method: 'GET' });
+          internalProductLookupCache.set(query, response.data);
+          if (input.value.trim() === query) linkInventory(response.data);
+          return;
+        } catch (_) { /* no existe: sigue abajo */ }
+        if (query.length >= 6 && input.value.trim() === query) openNewProductForLine(query);
+      }, 260);
+    };
+
+    input.addEventListener('input', () => {
+      if (item.recepcion_estado === 'NO_RECIBIDO') return;
+      window.clearTimeout(numericTimer);
+      item.match = { status: 'PENDING', inventory_id: null, inventory: null };
+      item.nuevo_producto = null;
+      renderMatch();
+      updateContinueEntryState();
+      const query = input.value.trim();
+      if (/^\d{4,}$/.test(query)) {
+        suggestions.replaceChildren();
+        scheduleNumericResolve(query);
+      } else {
+        searchProducts();
+      }
     });
     input.addEventListener('focus', revealSkuColumn);
     input.addEventListener('click', revealSkuColumn);
     input.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
+        window.clearTimeout(numericTimer);
         lookup();
       }
     });
-    input.addEventListener('blur', lookup);
+    input.addEventListener('blur', () => {
+      if (item.recepcion_estado === 'NO_RECIBIDO') return;
+      lookup();
+    });
+    input.disabled = item.recepcion_estado === 'NO_RECIBIDO';
     renderMatch();
     skuCell.append(input, message, salePreview, suggestions);
     row.appendChild(skuCell);
+
+    // ---- Columna de acciones -------------------------------------------------
+    const actionsCell = document.createElement('td');
+    actionsCell.className = 'line-actions-cell';
+    const actionsWrap = document.createElement('div');
+    actionsWrap.className = 'line-actions';
+    const addAction = (action, iconClass, title) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'line-action-btn';
+      button.dataset.lineAction = action;
+      button.title = title;
+      button.setAttribute('aria-label', title);
+      button.innerHTML = `<i class="fa-solid ${iconClass}" aria-hidden="true"></i>`;
+      actionsWrap.appendChild(button);
+    };
+    if (item.recepcion_estado === 'NO_RECIBIDO') {
+      addAction('deshacer', 'fa-rotate-left', 'Deshacer: volver a recibir este producto');
+    } else {
+      addAction('sugerido', 'fa-calculator', 'Precio de venta sugerido (38%)');
+      addAction('editar', 'fa-pen-to-square', 'Editar nombre, zona, empaquetado y precio');
+      addAction('unidades', 'fa-boxes-packing', item.desglose ? 'Desglose de unidades (activo)' : 'Añadir unidades');
+      addAction('quitar', 'fa-trash', 'No recibí este producto');
+    }
+    if (item.desglose) actionsWrap.classList.add('has-desglose');
+    actionsCell.addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-line-action]');
+      if (!button) return;
+      const action = button.dataset.lineAction;
+      if (action === 'deshacer') {
+        item.recepcion_estado = 'COMPLETA';
+        item.cantidad_recibida = billedQuantity;
+        rerenderRows();
+        return;
+      }
+      try {
+        if (typeof window.ingresoRegistro?.rowAction !== 'function') {
+          await loadRegisterModule();
+          await window.initIngresoRegistro();
+        }
+      } catch (_) { return; }
+      await window.ingresoRegistro.rowAction(action, { item, rerender: rerenderRows });
+    });
+    actionsCell.appendChild(actionsWrap);
+    row.appendChild(actionsCell);
+
     elements.itemsBody.appendChild(row);
   });
 }
@@ -2029,23 +2195,45 @@ function updateProviderReviewState(status = matchedProvider ? 'matched' : 'unmat
   elements.totalsStrip.hidden = summaryOnly;
   elements.itemsSection.hidden = summaryOnly;
   elements.warningsSection.hidden = summaryOnly || elements.warningsList.children.length === 0;
-  elements.continueEntryButton.hidden = summaryOnly;
+  elements.registerInvoiceButton.hidden = summaryOnly;
+  elements.registerPaymentBlock.hidden = summaryOnly;
   elements.downloadButton.hidden = summaryOnly;
   elements.providerLinkButton.disabled = checking;
 }
 
+// Una línea está lista si: no recibida (con motivo), o tiene SKU vinculado /
+// producto nuevo por crear y —si es parcial— cantidad y motivo válidos.
+function invoiceLineReady(item) {
+  if (typeof window.ingresoRegistro?.lineReady === 'function') {
+    return window.ingresoRegistro.lineReady(item);
+  }
+  if (item.recepcion_estado === 'NO_RECIBIDO') {
+    return String(item.nota_recepcion || '').trim().length >= 3;
+  }
+  const hasSku = (item.match?.status === 'MATCHED' && item.match.inventory?.id)
+    || (item.match?.status === 'NEW' && item.nuevo_producto?.codigo);
+  if (!hasSku) return false;
+  if (item.recepcion_estado === 'PARCIAL') {
+    const quantity = Number(item.quantity);
+    const received = Number(item.cantidad_recibida);
+    return Number.isFinite(received) && received > 0 && received < quantity
+      && String(item.nota_recepcion || '').trim().length >= 3;
+  }
+  return true;
+}
+
+function paymentBlockReady() {
+  const tipo = elements.regTipoPago?.value;
+  if (tipo === 'Contado' && !elements.regMetodoPago?.value) return false;
+  return Boolean(tipo);
+}
+
 function updateContinueEntryState() {
-  const hasEveryInternalProduct = Array.isArray(currentDraft?.items)
-    && currentDraft.items.length > 0
-    && currentDraft.items.every((item) => item.match?.status === 'MATCHED' && item.match.inventory?.id);
-  const hasValidReception = Array.isArray(currentDraft?.items)
-    && currentDraft.items.every((item) => {
-      if (item.recepcion_estado !== 'INCOMPLETA') return true;
-      const quantity = Number(item.quantity);
-      const received = Number(item.cantidad_recibida);
-      return Number.isFinite(received) && received >= 0 && received <= quantity && String(item.nota_recepcion || '').trim().length > 0;
-    });
-  elements.continueEntryButton.disabled = !matchedProvider || !hasEveryInternalProduct || !hasValidReception;
+  const lines = Array.isArray(currentDraft?.items) ? currentDraft.items : [];
+  const allReady = lines.length > 0 && lines.every(invoiceLineReady);
+  if (elements.registerInvoiceButton) {
+    elements.registerInvoiceButton.disabled = !matchedProvider || !allReady || !paymentBlockReady();
+  }
   scheduleInvoiceDraftSave();
 }
 
@@ -2110,10 +2298,62 @@ async function renderDraft(draft) {
   setText('providerLinkProductCount', draft.items.length);
   renderItems(draft.items);
   renderWarnings(draft.warnings);
+  setupPaymentBlock(draft);
+  loadRegisterModule().then(() => window.initIngresoRegistro()).catch(() => {});
   elements.review.hidden = false;
   await resolveProvider(draft);
   saveInvoiceDraftNow();
   elements.review.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+const CONTADO_METHODS = [
+  ['EFECTIVO', 'Efectivo'],
+  ['TRANSFERENCIA', 'Transferencia'],
+  ['CONTADO - CHEQUE', 'Cheque'],
+  ['CONTADO - DEPOSITO', 'Depósito'],
+  ['CONTADO - TARJETA_CREDITO', 'Tarjeta de crédito'],
+  ['CONTADO - TARJETA_DEBITO', 'Tarjeta de débito']
+];
+let paymentBlockBound = false;
+
+function setupPaymentBlock(draft) {
+  if (!elements.regMetodoPago) return;
+  if (!elements.regMetodoPago.options.length) {
+    CONTADO_METHODS.forEach(([value, label]) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      elements.regMetodoPago.appendChild(option);
+    });
+  }
+  if (!elements.regVencimiento.value) {
+    elements.regVencimiento.value = draft.invoice?.issue_date || new Date().toISOString().slice(0, 10);
+  }
+  setText('regSubtotal', money(draft.totals?.gross_subtotal));
+  setText('regDescuento', money(draft.totals?.discount));
+  setText('regIva', money(draft.totals?.tax));
+  setText('regTotal', money(draft.totals?.total));
+  const syncMethod = () => {
+    elements.regMetodoWrap.hidden = elements.regTipoPago.value !== 'Contado';
+    updateContinueEntryState();
+  };
+  if (!paymentBlockBound) {
+    paymentBlockBound = true;
+    elements.regTipoPago.addEventListener('change', syncMethod);
+    elements.regMetodoPago.addEventListener('change', updateContinueEntryState);
+    elements.regVencimiento.addEventListener('change', updateContinueEntryState);
+  }
+  syncMethod();
+}
+
+function readPaymentBlock() {
+  return {
+    tipo_pago: elements.regTipoPago?.value === 'Contado' ? 'Contado' : 'Plazo',
+    metodo_pago: elements.regMetodoPago?.value || null,
+    fecha_vencimiento: elements.regVencimiento?.value || null,
+    referencia_pago: elements.regReferencia?.value.trim() || null,
+    notas: null
+  };
 }
 
 function calculateCheckDigit(first48Digits) {
@@ -3154,28 +3394,32 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !elements.providerLinkModal.hidden) closeProviderLinking();
 });
 
-elements.continueEntryButton.addEventListener('click', async () => {
-  if (!currentDraft || !matchedProvider) return;
-  elements.continueEntryButton.disabled = true;
-  elements.continueEntryButton.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Preparando';
+elements.registerInvoiceButton.addEventListener('click', async () => {
+  if (!currentDraft || !matchedProvider || elements.registerInvoiceButton.disabled) return;
+  elements.registerInvoiceButton.disabled = true;
+  const originalHtml = elements.registerInvoiceButton.innerHTML;
+  elements.registerInvoiceButton.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Registrando';
   try {
-    await switchAppModule('provider-entry');
-    history.replaceState(null, '', '#ingreso-facturas');
-    document.querySelectorAll('[data-app-module]').forEach((item) => {
-      const active = item.dataset.appModule === 'invoice-import';
-      item.classList.toggle('active', active);
-      if (active) item.setAttribute('aria-current', 'page');
-      else item.removeAttribute('aria-current');
+    await loadRegisterModule();
+    await window.initIngresoRegistro();
+    await window.ingresoRegistro.registrar({
+      draft: currentDraft,
+      provider: matchedProvider,
+      payment: readPaymentBlock(),
+      onDone: async (result) => {
+        try {
+          if (currentPendingDocumentId && result?.factura_id) {
+            await window.completePendingPurchaseDocument(result.factura_id);
+          }
+        } catch (_) { /* el pendiente se puede cerrar luego */ }
+        resetInvoice({ release: false });
+        await loadPendingDocuments({ silent: true });
+      }
     });
-    await waitForManualEntry();
-    window.iniciarIngresoFacturaDesdeXml(currentDraft, matchedProvider);
-    markManualInvoiceFlow();
   } catch (error) {
-    document.querySelector('[data-module-panel="invoice-import"]').hidden = false;
-    document.querySelector('[data-module-panel="providers"]').hidden = true;
-    showError(error.message);
+    showError(error.message || 'No fue posible registrar la factura.');
   } finally {
-    elements.continueEntryButton.innerHTML = '<i class="fa-solid fa-arrow-right" aria-hidden="true"></i> Continuar ingreso';
+    elements.registerInvoiceButton.innerHTML = originalHtml;
     updateContinueEntryState();
   }
 });

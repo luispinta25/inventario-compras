@@ -371,6 +371,7 @@
                     <th class="number">IVA</th>
                     <th class="number">Subtotal</th>
                     <th>SKU interno</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody id="itemsBody"></tbody>
@@ -383,6 +384,38 @@
             <ul id="warningsList"></ul>
           </section>
 
+          <section class="register-payment" id="registerPaymentBlock" hidden aria-labelledby="registerPaymentTitle">
+            <div class="section-heading compact">
+              <div>
+                <p class="section-kicker">Registro de la factura</p>
+                <h2 id="registerPaymentTitle">Pago y vencimiento</h2>
+              </div>
+            </div>
+            <div class="register-payment-grid">
+              <label>Tipo de pago
+                <select id="regTipoPago">
+                  <option value="Plazo">Crédito / plazo</option>
+                  <option value="Contado">Contado</option>
+                </select>
+              </label>
+              <label id="regMetodoWrap" hidden>Método
+                <select id="regMetodoPago"></select>
+              </label>
+              <label>Vencimiento
+                <input type="date" id="regVencimiento">
+              </label>
+              <label>Referencia de pago (opcional)
+                <input type="text" id="regReferencia" maxlength="120" autocomplete="off">
+              </label>
+            </div>
+            <div class="register-payment-totals">
+              <span>Subtotal <strong id="regSubtotal">$0.00</strong></span>
+              <span>Descuento <strong id="regDescuento">$0.00</strong></span>
+              <span>IVA <strong id="regIva">$0.00</strong></span>
+              <span>Total <strong id="regTotal">$0.00</strong></span>
+            </div>
+          </section>
+
           <footer class="review-actions">
             <button type="button" class="button button-secondary" id="resetButton">
               <i class="fa-solid fa-arrow-rotate-left" aria-hidden="true"></i>
@@ -393,13 +426,13 @@
                 <i class="fa-solid fa-download" aria-hidden="true"></i>
                 Descargar borrador
               </button>
-              <button type="button" class="button button-primary" id="saveToPendingButton" disabled>
+              <button type="button" class="button button-secondary" id="saveToPendingButton" disabled>
                 <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>
                 Guardar en pendientes
               </button>
-              <button type="button" class="button button-secondary" id="continueEntryButton" disabled>
-                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
-                Continuar ingreso
+              <button type="button" class="button button-primary" id="registerInvoiceButton" disabled>
+                <i class="fa-solid fa-file-circle-check" aria-hidden="true"></i>
+                Registrar factura
               </button>
             </div>
           </footer>
@@ -1040,6 +1073,124 @@
         <button type="button" class="button button-primary" id="providerLinkConfirmButton" disabled>
           <i class="fa-solid fa-link" aria-hidden="true"></i>
           Vincular
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="reg-modal" id="newProductModal" hidden>
+    <section class="reg-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="newProductTitle">
+      <header>
+        <div>
+          <p class="section-kicker">Inventario</p>
+          <h2 id="newProductTitle">Producto nuevo</h2>
+        </div>
+        <button type="button" class="icon-button" id="npClose" title="Cerrar" aria-label="Cerrar">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+      </header>
+      <div class="reg-modal-body reg-modal-body-2col">
+        <div class="reg-modal-col">
+          <div class="reg-field-row">
+            <label>Código<input type="text" id="npCodigo" maxlength="100" autocomplete="off" inputmode="numeric"></label>
+            <label>Precio de compra<input type="text" id="npCosto" readonly></label>
+          </div>
+          <label>Nombre del producto<input type="text" id="npNombre" maxlength="250" autocomplete="off"></label>
+          <label>Stock mínimo<input type="number" id="npStockMin" min="0" step="1" inputmode="numeric"></label>
+          <p class="reg-hint">El precio de venta y el % de ganancia se eligen en la fila, debajo del SKU.</p>
+        </div>
+        <div class="reg-modal-col">
+          <p class="reg-field-label">Empaquetado</p>
+          <div class="reg-chip-grid" id="npEmpaque"></div>
+          <p class="reg-field-label">Zona</p>
+          <div class="reg-chip-grid reg-chip-grid-num" id="npZona"></div>
+        </div>
+        <p class="reg-modal-error reg-span-2" id="npError" aria-live="polite"></p>
+      </div>
+      <footer>
+        <button type="button" class="button button-secondary" id="npCancel">Cancelar</button>
+        <button type="button" class="button button-primary" id="npConfirm">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i> Crear producto
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="reg-modal" id="editLineModal" hidden>
+    <section class="reg-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="editLineTitle">
+      <header>
+        <div>
+          <p class="section-kicker">Línea de la factura</p>
+          <h2 id="editLineTitle">Editar producto</h2>
+        </div>
+        <button type="button" class="icon-button" id="elClose" title="Cerrar" aria-label="Cerrar">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+      </header>
+      <div class="reg-modal-body reg-modal-body-2col">
+        <div class="reg-modal-col">
+          <div class="reg-readonly-row">
+            <span>Código <strong id="elCodigo">—</strong></span>
+            <span>Precio de compra <strong id="elCosto">$0.00</strong></span>
+          </div>
+          <label>Nombre del producto<input type="text" id="elNombre" maxlength="250" autocomplete="off"></label>
+          <p class="reg-hint">El precio de venta y el % de ganancia se eligen en la fila, debajo del SKU.</p>
+        </div>
+        <div class="reg-modal-col">
+          <p class="reg-field-label">Empaquetado</p>
+          <div class="reg-chip-grid" id="elEmpaque"></div>
+          <p class="reg-field-label">Zona</p>
+          <div class="reg-chip-grid reg-chip-grid-num" id="elZona"></div>
+        </div>
+        <p class="reg-modal-error reg-span-2" id="elError" aria-live="polite"></p>
+      </div>
+      <footer>
+        <button type="button" class="button button-secondary" id="elCancel">Cancelar</button>
+        <button type="button" class="button button-primary" id="elConfirm">
+          <i class="fa-solid fa-check" aria-hidden="true"></i> Guardar
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="reg-modal" id="unidadesModal" hidden>
+    <section class="reg-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="unidadesTitle">
+      <header>
+        <div>
+          <p class="section-kicker">Desglose interno paquete → unidades</p>
+          <h2 id="unidadesTitle">Añadir unidades</h2>
+        </div>
+        <button type="button" class="icon-button" id="unClose" title="Cerrar" aria-label="Cerrar">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+      </header>
+      <div class="reg-modal-body reg-modal-body-2col">
+        <p class="reg-readonly-row reg-span-2">
+          <span id="unTitulo">—</span>
+          <span id="unRecibidas">—</span>
+        </p>
+        <div class="reg-modal-col">
+          <div class="reg-field-row">
+            <label>Paquetes a desglosar<input type="number" id="unPaquetes" min="0" step="1" inputmode="numeric"></label>
+            <label>Unidades por paquete<input type="number" id="unUpp" min="1" step="1" inputmode="numeric"></label>
+          </div>
+          <label>Código de las unidades<input type="text" id="unCodigo" maxlength="100" autocomplete="off"></label>
+          <label>Nombre de las unidades<input type="text" id="unNombre" maxlength="250" autocomplete="off"></label>
+          <label>Precio de venta unitario<input type="number" id="unPrecioVenta" min="0" step="0.01" inputmode="decimal"></label>
+          <p class="reg-hint" id="unPrecioVentaHint"></p>
+        </div>
+        <div class="reg-modal-col">
+          <p class="reg-field-label">Zona de las unidades</p>
+          <div class="reg-chip-grid reg-chip-grid-num" id="unZona"></div>
+          <p class="reg-hint" id="unResumen"></p>
+        </div>
+        <p class="reg-modal-error reg-span-2" id="unError" aria-live="polite"></p>
+      </div>
+      <footer>
+        <button type="button" class="button button-danger" id="unQuitar" hidden>Quitar desglose</button>
+        <button type="button" class="button button-secondary" id="unCancel">Cancelar</button>
+        <button type="button" class="button button-primary" id="unConfirm">
+          <i class="fa-solid fa-boxes-packing" aria-hidden="true"></i> Aplicar
         </button>
       </footer>
     </section>
