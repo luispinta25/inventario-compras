@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260910.7';
+const APP_BUILD = '20260910.8';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -2438,6 +2438,19 @@ const CONTADO_METHODS = [
 ];
 let paymentBlockBound = false;
 
+// Vencimiento por defecto: fecha de emisión + 1 mes.
+function isoDatePlusOneMonth(isoDate) {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate || '');
+  const base = parts
+    ? new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]))
+    : new Date();
+  base.setMonth(base.getMonth() + 1);
+  const year = base.getFullYear();
+  const month = String(base.getMonth() + 1).padStart(2, '0');
+  const day = String(base.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function setupPaymentBlock(draft) {
   if (!elements.regMetodoPago) return;
   if (!elements.regMetodoPago.options.length) {
@@ -2449,7 +2462,7 @@ function setupPaymentBlock(draft) {
     });
   }
   if (!elements.regVencimiento.value) {
-    elements.regVencimiento.value = draft.invoice?.issue_date || new Date().toISOString().slice(0, 10);
+    elements.regVencimiento.value = isoDatePlusOneMonth(draft.invoice?.issue_date);
   }
   setText('regSubtotal', money(draft.totals?.gross_subtotal));
   setText('regDescuento', money(draft.totals?.discount));
@@ -2918,6 +2931,9 @@ function resetInvoice({ release = true } = {}) {
   failedSriAttempts = 0;
   elements.accessKeyInput.value = '';
   elements.xmlFileInput.value = '';
+  if (elements.regVencimiento) elements.regVencimiento.value = '';
+  if (elements.regReferencia) elements.regReferencia.value = '';
+  if (elements.regTipoPago) elements.regTipoPago.value = 'Plazo';
   elements.review.hidden = true;
   clearError();
   updateKeyState();
