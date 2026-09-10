@@ -627,6 +627,7 @@
             <button type="button" class="invoice-tab" data-inv-tab="productos" role="tab" aria-selected="false">Productos</button>
             <button type="button" class="invoice-tab" data-inv-tab="pago" role="tab" aria-selected="false">Registrar pago</button>
             <button type="button" class="invoice-tab" data-inv-tab="nota-credito" role="tab" aria-selected="false">Nota de crédito</button>
+            <button type="button" class="invoice-tab" data-inv-tab="novedades" role="tab" aria-selected="false">Novedades <span class="invoice-tab-count" id="invNovedadesTabCount" hidden>0</span></button>
           </div>
 
           <div class="invoice-modal-body">
@@ -741,6 +742,12 @@
                   </button>
                 </div>
               </form>
+            </div>
+
+            <div class="invoice-tab-panel" data-inv-panel="novedades">
+              <p class="invoice-nc-hint">Novedades de recepción de esta factura (parcial / no recibida). Se resuelven aquí con nota de crédito, devolución u otra decisión.</p>
+              <div id="invNovedadesList" class="invoice-novedades-list" aria-live="polite"></div>
+              <p class="invoice-empty" id="invNovedadesEmpty" hidden>Esta factura no tiene novedades de recepción.</p>
             </div>
           </div>
         </section>

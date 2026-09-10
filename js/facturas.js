@@ -220,6 +220,13 @@
     foot.textContent = vencimientoLabel(invoice);
 
     card.append(head, body, foot);
+    if (invoice.novedades_abiertas > 0) {
+      const flag = document.createElement('span');
+      flag.className = 'invoice-card-flag';
+      flag.innerHTML = `<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ${invoice.novedades_abiertas} `
+        + `${invoice.novedades_abiertas === 1 ? 'novedad' : 'novedades'}`;
+      card.appendChild(flag);
+    }
     card.addEventListener('click', () => openInvoice(invoice.id));
     return card;
   }
@@ -269,8 +276,173 @@
 
     renderHistorial(payload.pagos || []);
     renderProductos(payload.productos || []);
+    renderNovedades(payload.notas_producto || []);
     preparePagoForm(invoice);
     prepareNcForm(invoice);
+  }
+
+  const NOVEDAD_SOLUCIONES = [
+    'Nota de crédito emitida',
+    'Devuelto al proveedor',
+    'Se aceptó / se queda',
+    'Cargado a otra factura',
+    'Otro'
+  ];
+
+  function renderNovedades(notas) {
+    const list = el('invNovedadesList');
+    const abiertas = notas.filter((nota) => nota.estado === 'ABIERTA').length;
+    const countBadge = el('invNovedadesTabCount');
+    if (countBadge) {
+      countBadge.textContent = String(abiertas);
+      countBadge.hidden = abiertas === 0;
+    }
+    list.replaceChildren();
+    el('invNovedadesEmpty').hidden = notas.length > 0;
+
+    notas.forEach((nota) => {
+      const card = document.createElement('article');
+      card.className = `invoice-novedad${nota.estado === 'RESUELTA' ? ' is-resuelta' : ''}`;
+
+      const head = document.createElement('div');
+      head.className = 'invoice-novedad-head';
+      const pill = document.createElement('span');
+      pill.className = `invoice-novedad-pill ${nota.tipo === 'NO_RECIBIDO' ? 'is-none' : 'is-partial'}`;
+      pill.textContent = nota.tipo === 'NO_RECIBIDO' ? 'No recibido' : 'Parcial';
+      const estado = document.createElement('span');
+      estado.className = 'invoice-novedad-estado';
+      estado.textContent = nota.estado === 'RESUELTA' ? 'Resuelta' : 'Abierta';
+      head.append(pill, estado);
+
+      const title = document.createElement('p');
+      title.className = 'invoice-novedad-title';
+      title.textContent = `${nota.codigo_proveedor || 'S/C'} · ${nota.nombre_proveedor || 'Sin descripción'}`;
+
+      const meta = document.createElement('p');
+      meta.className = 'invoice-novedad-meta';
+      meta.textContent = `Facturado ${fmtNum(nota.cantidad_facturada)} · recibido ${fmtNum(nota.cantidad_recibida)} · falta ${fmtNum(nota.cantidad_afectada)}`;
+
+      const motivo = document.createElement('p');
+      motivo.className = 'invoice-novedad-motivo';
+      motivo.textContent = `Motivo: ${nota.motivo || '-'}`;
+
+      card.append(head, title, meta, motivo);
+
+      if (nota.estado === 'RESUELTA') {
+        const sol = document.createElement('p');
+        sol.className = 'invoice-novedad-solucion';
+        const quien = [nota.resuelto_por, nota.resuelto_en ? fmtDateTime(nota.resuelto_en) : null].filter(Boolean).join(' · ');
+        sol.textContent = `Solución: ${nota.solucion || '-'}${nota.solucion_detalle ? ` — ${nota.solucion_detalle}` : ''}${quien ? ` (${quien})` : ''}`;
+        card.appendChild(sol);
+      } else {
+        card.appendChild(buildResolveForm(nota));
+      }
+      list.appendChild(card);
+    });
+  }
+
+  function buildResolveForm(nota) {
+    const form = document.createElement('form');
+    form.className = 'invoice-novedad-form';
+
+    const solLabel = document.createElement('label');
+    solLabel.textContent = 'Solución';
+    const solSelect = document.createElement('select');
+    solSelect.required = true;
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Elige una solución…';
+    solSelect.appendChild(placeholder);
+    NOVEDAD_SOLUCIONES.forEach((value) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value;
+      solSelect.appendChild(option);
+    });
+    solLabel.appendChild(solSelect);
+
+    const ncWrap = document.createElement('label');
+    ncWrap.className = 'invoice-novedad-nc';
+    ncWrap.hidden = true;
+    ncWrap.textContent = 'Nota de crédito';
+    const ncSelect = document.createElement('select');
+    const ncNone = document.createElement('option');
+    ncNone.value = '';
+    ncNone.textContent = '(sin enlazar)';
+    ncSelect.appendChild(ncNone);
+    (state.current?.notas_credito || []).forEach((nc) => {
+      const option = document.createElement('option');
+      option.value = nc.id;
+      option.textContent = `${nc.numero || 'NC'} · ${money(nc.valor)}`;
+      ncSelect.appendChild(option);
+    });
+    ncWrap.appendChild(ncSelect);
+    const ncHint = document.createElement('span');
+    ncHint.className = 'invoice-novedad-nc-hint';
+    ncHint.textContent = 'Si aún no existe, emítela en la pestaña "Nota de crédito" y vuelve aquí.';
+    ncWrap.appendChild(ncHint);
+
+    const detLabel = document.createElement('label');
+    detLabel.textContent = 'Detalle (opcional)';
+    const detInput = document.createElement('textarea');
+    detInput.rows = 2;
+    detInput.maxLength = 500;
+    detLabel.appendChild(detInput);
+
+    const error = document.createElement('p');
+    error.className = 'invoice-pago-error';
+    error.hidden = true;
+
+    const actions = document.createElement('div');
+    actions.className = 'invoice-novedad-actions';
+    const submit = document.createElement('button');
+    submit.type = 'submit';
+    submit.className = 'button button-primary';
+    submit.innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i> Marcar resuelta';
+    actions.appendChild(submit);
+
+    solSelect.addEventListener('change', () => {
+      ncWrap.hidden = solSelect.value !== 'Nota de crédito emitida';
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      error.hidden = true;
+      if (!solSelect.value) {
+        error.textContent = 'Selecciona una solución.';
+        error.hidden = false;
+        return;
+      }
+      submit.disabled = true;
+      try {
+        const invoiceId = state.current?.invoice?.id;
+        await window.app.posApiRequest(
+          `${API}/${encodeURIComponent(invoiceId)}/notas-producto/${encodeURIComponent(nota.id)}/resolve`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              solucion: solSelect.value,
+              solucion_detalle: detInput.value.trim() || null,
+              nota_credito_id: solSelect.value === 'Nota de crédito emitida' ? (ncSelect.value || null) : null
+            })
+          }
+        );
+        await openInvoice(invoiceId);
+        setTab('novedades');
+        loadInvoices();
+      } catch (requestError) {
+        submit.disabled = false;
+        error.textContent = requestError?.message || 'No fue posible resolver la novedad.';
+        error.hidden = false;
+      }
+    });
+
+    form.append(solLabel, ncWrap, detLabel, error, actions);
+    return form;
+  }
+
+  function fmtNum(value) {
+    return (Number(value) || 0).toLocaleString('es-EC', { maximumFractionDigits: 3 });
   }
 
   function renderHistorial(pagos) {

@@ -978,3 +978,28 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
   .reg-modal-body-2col { grid-template-columns: 1fr; }
   .reg-modal-dialog > footer { flex-wrap: wrap; }
 }
+
+/* ===== Novedades de recepción (Gestión de facturas) ===== */
+.invoice-card { position: relative; }
+.invoice-card-flag { position: absolute; top: 10px; right: 12px; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px; background: #fdeecb; color: #8a5a00; font-size: 11px; font-weight: 800; }
+.invoice-card.is-archived .invoice-card-flag { opacity: .6; }
+
+.invoice-tab-count { display: inline-flex; min-width: 17px; height: 17px; padding: 0 4px; align-items: center; justify-content: center; border-radius: 999px; background: var(--red); color: #fff; font-size: 10px; font-weight: 800; vertical-align: middle; }
+
+.invoice-novedades-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.invoice-novedad { padding: 14px; border: 1px solid var(--line); border-left: 4px solid #c98a1a; border-radius: 8px; background: var(--surface); }
+.invoice-novedad.is-resuelta { border-left-color: #2b9b5c; opacity: .82; }
+.invoice-novedad-head { display: flex; align-items: center; gap: 8px; }
+.invoice-novedad-pill { padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+.invoice-novedad-pill.is-partial { background: #fdeecb; color: #8a5a00; }
+.invoice-novedad-pill.is-none { background: #ffe1e1; color: #9b2c2c; }
+.invoice-novedad-estado { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.invoice-novedad-title { margin: 8px 0 2px; font-weight: 800; font-size: 14px; color: var(--ink); }
+.invoice-novedad-meta { margin: 0; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.invoice-novedad-motivo { margin: 4px 0 0; font-size: 12.5px; color: #444b53; }
+.invoice-novedad-solucion { margin: 8px 0 0; font-size: 12.5px; font-weight: 650; color: #1c6b3a; }
+.invoice-novedad-form { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.invoice-novedad-form label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 700; color: #4a545e; }
+.invoice-novedad-form select, .invoice-novedad-form textarea { padding: 7px 9px; border: 1px solid #c6cdd4; border-radius: 6px; background: #fff; font: inherit; font-size: 13px; color: #23282e; }
+.invoice-novedad-nc-hint { font-size: 11px; font-weight: 500; color: var(--muted); }
+.invoice-novedad-actions { display: flex; justify-content: flex-end; }

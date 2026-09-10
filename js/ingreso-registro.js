@@ -13,10 +13,9 @@
   const DEFAULT_PCT = 38;
   const EMPAQUE_OPTIONS = [
     'CAJA', 'UNIDADES', 'PAQUETES', 'PAR', 'DOCENA', 'MEDIA DOCENA', 'CIENTOS',
-    'MILLAR', 'GRUESA', 'FUNDA', 'BLISTER', 'PACK', 'JUEGO', 'KIT', 'SET', 'TIRA',
-    'ROLLO', 'BOBINA', 'METROS', 'METRO CUBICO', 'PLIEGO', 'PLANCHA',
-    'BALDE', 'TAMBOR', 'CUNETE', 'BIDON', 'GALONES', 'LITROS',
-    'MILILITROS', 'LIBRAS', 'KILO', 'GRAMOS', 'ENTERO'
+    'MILLAR', 'GRUESA', 'FUNDA', 'BLISTER', 'PACK', 'JUEGO', 'KIT', 'SET',
+    'ROLLO', 'METROS', 'PLIEGO', 'BALDE', 'GALONES', 'LITROS',
+    'LIBRAS', 'KILO', 'GRAMOS', 'ENTERO'
   ];
   const ZONA_OPTIONS = Array.from({ length: 18 }, (_, index) => index + 1);
   const METODOS_CONTADO = [
