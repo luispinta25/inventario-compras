@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260910.4';
+const APP_BUILD = '20260910.5';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -1861,15 +1861,28 @@ function renderItems(items) {
       return Math.round(unitNetCost * 1.15 * 1.05 * (1 + Number(gain) / 100) * 100) / 100;
     };
 
-    // Info siempre visible en la columna de acciones (se asigna al construir la celda).
+    // Cápsulas siempre visibles en la columna de acciones (se asignan al
+    // construir la celda). Al pulsarlas, aplican ese precio de venta.
     let actionSugeridoEl = null;
     let actionActualEl = null;
     const refreshActionInfo = () => {
-      if (actionSugeridoEl) actionSugeridoEl.textContent = `Sugerido 38% ${money(calculateXmlSalePrice(38))}`;
+      if (actionSugeridoEl) {
+        actionSugeridoEl.querySelector('b').textContent = money(calculateXmlSalePrice(38));
+      }
       if (actionActualEl) {
         const actual = item.match?.status === 'MATCHED' ? Number(item.match.inventory?.precio) : NaN;
-        actionActualEl.textContent = Number.isFinite(actual) && actual > 0 ? `Actual ${money(actual)}` : 'Actual —';
+        const has = Number.isFinite(actual) && actual > 0;
+        actionActualEl.querySelector('b').textContent = has ? money(actual) : '—';
+        actionActualEl.disabled = !has;
+        actionActualEl.dataset.value = has ? String(Math.round(actual * 100) / 100) : '';
       }
+    };
+    const applySalePrice = (mode, value) => {
+      item.sale_margin_percent = mode;
+      item.sale_price = mode === 'manual' ? value : calculateXmlSalePrice(38);
+      renderMatch();
+      updateContinueEntryState();
+      scheduleInvoiceDraftSave();
     };
 
     const renderMatch = () => {
@@ -2190,7 +2203,6 @@ function renderItems(items) {
       addAction('deshacer', 'fa-rotate-left', 'Deshacer: volver a recibir este producto');
     } else {
       addAction('nuevo', 'fa-plus', 'Crear producto nuevo (código manual)');
-      addAction('sugerido', 'fa-calculator', 'Precio de venta sugerido (38%)');
       addAction('editar', 'fa-pen-to-square', 'Editar nombre, zona, empaquetado y precio');
       addAction('unidades', 'fa-boxes-packing', item.desglose ? 'Desglose de unidades (activo)' : 'Añadir unidades');
       addAction('quitar', 'fa-trash', 'No recibí este producto');
@@ -2223,8 +2235,21 @@ function renderItems(items) {
     if (item.recepcion_estado !== 'NO_RECIBIDO') {
       const actionsInfo = document.createElement('div');
       actionsInfo.className = 'line-actions-info';
-      actionSugeridoEl = document.createElement('span');
-      actionActualEl = document.createElement('span');
+      actionSugeridoEl = document.createElement('button');
+      actionSugeridoEl.type = 'button';
+      actionSugeridoEl.className = 'line-info-pill is-suggested';
+      actionSugeridoEl.title = 'Aplicar precio de venta sugerido (38%)';
+      actionSugeridoEl.innerHTML = 'Sugerido 38% <b></b>';
+      actionSugeridoEl.addEventListener('click', () => applySalePrice(38));
+      actionActualEl = document.createElement('button');
+      actionActualEl.type = 'button';
+      actionActualEl.className = 'line-info-pill is-current';
+      actionActualEl.title = 'Aplicar el precio de venta actual del inventario';
+      actionActualEl.innerHTML = 'Actual <b></b>';
+      actionActualEl.addEventListener('click', () => {
+        const value = Number(actionActualEl.dataset.value);
+        if (value > 0) applySalePrice('manual', value);
+      });
       actionsInfo.append(actionSugeridoEl, actionActualEl);
       actionsCell.appendChild(actionsInfo);
       refreshActionInfo();

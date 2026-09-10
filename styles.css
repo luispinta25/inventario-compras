@@ -431,6 +431,14 @@ main { width: min(1500px, calc(100% - 32px)); margin: 24px auto 48px; }
 .totals-strip span { color: var(--muted); font-size: 12px; }
 .totals-strip strong { margin-top: 5px; font-size: 18px; }
 .items-section { padding: 25px 26px 10px; }
+/* Cada fila de productos se lee como una sola unidad: todo el contenido
+   anclado arriba, franjas alternas y separador marcado, para no confundir a
+   qué producto pertenece cada control de recepción / validación. */
+#itemsSection #itemsBody > tr > td { vertical-align: top; border-bottom: 2px solid #d5dbe1; }
+#itemsSection #itemsBody > tr:nth-child(even) > td { background: #f6f8fa; }
+#itemsSection #itemsBody > tr:hover > td { background: #eef4fb; }
+#itemsSection #itemsBody > tr:last-child > td { border-bottom: 0; }
+#itemsSection thead th { vertical-align: bottom; }
 .pending-count { color: #805500; font-size: 13px; font-weight: 750; }
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
 table { width: 100%; min-width: 1040px; border-collapse: collapse; }
@@ -932,7 +940,13 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 
 .line-actions-cell { white-space: nowrap; vertical-align: top; }
 .line-actions { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.line-actions-info { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; font-size: 10.5px; font-weight: 700; color: #6b737b; font-variant-numeric: tabular-nums; }
+.line-actions-info { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-top: 8px; }
+.line-info-pill { display: inline-flex; align-items: baseline; gap: 5px; padding: 3px 9px; border-radius: 999px; border: 1px solid transparent; font: inherit; font-size: 10.5px; font-weight: 750; white-space: nowrap; cursor: pointer; }
+.line-info-pill b { font-weight: 850; font-variant-numeric: tabular-nums; }
+.line-info-pill.is-suggested { background: #e8f0ff; border-color: #c5d6f5; color: #1e40af; }
+.line-info-pill.is-current { background: #def7e7; border-color: #b7e6c9; color: #146b3a; }
+.line-info-pill:hover:not(:disabled) { filter: brightness(0.96); }
+.line-info-pill:disabled { opacity: .5; cursor: default; }
 .line-action-btn { width: 26px; height: 26px; padding: 0; border: 1px solid #c7cdd3; border-radius: 4px; background: #fff; color: #55606a; cursor: pointer; }
 .line-action-btn:hover { background: var(--soft); color: #262b31; }
 .line-action-btn[data-line-action="quitar"]:hover { border-color: #c54848; color: #9b2c2c; }
