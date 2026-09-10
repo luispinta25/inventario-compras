@@ -447,7 +447,10 @@ th { color: #4e565f; background: var(--soft); font-size: 12px; }
 td { font-size: 13px; }
 tbody tr:last-child td { border-bottom: 0; }
 .number { text-align: right; font-variant-numeric: tabular-nums; }
-.xml-receipt-cell { min-width: 112px; display: grid; justify-items: end; gap: 4px; }
+/* Flex column (no grid): el grid con align-content:stretch por defecto
+   repartía verticalmente "N facturada" y los botones cuando la fila era alta,
+   dejando huecos enormes y confundiendo a qué producto pertenecían. */
+.xml-receipt-cell { min-width: 128px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .xml-billed-quantity { width: 72px; padding: 3px 5px; border: 1px solid #c6cdd4; border-radius: 4px; background: #fff; color: #252a30; font: inherit; font-weight: 750; text-align: right; }
 .xml-receipt-quantity { display: inline-flex; align-items: baseline; gap: 4px; }
 .xml-receipt-quantity small { color: var(--muted); font-size: 10px; }
@@ -466,7 +469,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .internal-sku-cell { position: relative; min-width: 230px; }
 .internal-sku-input { width: 100%; min-height: 34px; padding: 7px 9px; border: 1px solid #c6cdd4; border-radius: 5px; background: #fff; color: #252a30; font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; text-decoration: none; box-shadow: none; }
 .internal-sku-input:focus { outline: 2px solid #2b92c8; outline-offset: 1px; border-color: #2b92c8; }
-.internal-sku-message { display: block; margin-top: 6px; white-space: normal; }
+.internal-sku-message { display: block; margin-top: 6px; max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .xml-sale-preview { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 6px; color: #155e92; font-size: 11px; }
 .xml-sale-preview label { display: inline-flex; align-items: center; gap: 4px; font-weight: 750; }
 .xml-gain-select { min-height: 25px; padding: 2px 4px; border: 1px solid #94b6cc; border-radius: 4px; background: #eef7fc; color: #124d72; font: inherit; font-weight: 800; }
