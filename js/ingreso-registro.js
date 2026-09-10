@@ -439,6 +439,8 @@
       referencia_pago: payment.referencia_pago || null,
       descuento: round(Number(draft.totals?.discount) || 0, 2),
       iva: round(Number(draft.totals?.tax) || 0, 2),
+      // El total autoritativo del comprobante del SRI; el backend lo usa tal cual.
+      total_factura: round(Number(draft.totals?.total) || 0, 2),
       notas: payment.notas || null,
       items: buildItemsPayload(draft)
     };
@@ -567,7 +569,7 @@
     }
     await app().posApiRequest('/api/whatsapp/send-text', {
       method: 'POST',
-      body: JSON.stringify({ text: message, delay: 600 })
+      body: JSON.stringify({ text: message, delay: 800, linkPreview: false })
     });
   }
 

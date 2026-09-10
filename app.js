@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260910.2';
+const APP_BUILD = '20260910.3';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -2271,7 +2271,11 @@ async function resolveProvider(draft) {
 
 async function renderDraft(draft) {
   currentDraft = draft;
+  // Se limpia el proveedor de la factura anterior hasta que `resolveProvider`
+  // vuelva a resolverlo: evita habilitar "Registrar" con un proveedor obsoleto.
+  matchedProvider = null;
   elements.saveToPendingButton.disabled = true;
+  if (elements.registerInvoiceButton) elements.registerInvoiceButton.disabled = true;
   const warningCount = draft.warnings.length;
   elements.validationBanner.classList.toggle('warning', !draft.consistent);
   elements.validationIcon.className = draft.consistent ? 'fa-solid fa-circle-check' : 'fa-solid fa-triangle-exclamation';
