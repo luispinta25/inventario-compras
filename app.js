@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260910.6';
+const APP_BUILD = '20260910.7';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -1838,6 +1838,9 @@ function renderItems(items) {
     createCell(row, money(item.subtotal), 'number');
     const skuCell = document.createElement('td');
     skuCell.className = 'internal-sku-cell';
+    // Algunos lectores anteponen ceros a la izquierda (UPC-A -> EAN-13). En un
+    // código numérico se descartan; los SKU alfanuméricos no se tocan.
+    const stripLeadingZeros = (value) => (/^0\d/.test(value) ? value.replace(/^0+(?=\d)/, '') : value);
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'internal-sku-input';
@@ -1884,9 +1887,20 @@ function renderItems(items) {
       updateContinueEntryState();
       scheduleInvoiceDraftSave();
     };
+    // Tiñe la fila de rojo tenue si el precio de venta quedó por DEBAJO del
+    // sugerido al 38% (margen insuficiente).
+    const refreshMarginFlag = () => {
+      const suggested = calculateXmlSalePrice(38);
+      const sale = Number(item.sale_price);
+      const linked = item.match?.status === 'MATCHED' || item.match?.status === 'NEW';
+      const below = linked && item.recepcion_estado !== 'NO_RECIBIDO'
+        && Number.isFinite(sale) && sale > 0 && suggested > 0 && sale < suggested;
+      row.classList.toggle('line-below-suggested', below);
+    };
 
     const renderMatch = () => {
       refreshActionInfo();
+      refreshMarginFlag();
       const match = item.match || {};
       const icon = document.createElement('i');
       icon.setAttribute('aria-hidden', 'true');
@@ -1917,8 +1931,12 @@ function renderItems(items) {
         }
         message.className = `line-status ${isNew ? 'checking' : 'matched'} internal-sku-message`;
         icon.className = isNew ? 'fa-solid fa-wand-magic-sparkles' : 'fa-solid fa-link';
+        const displayName = isNew
+          ? (item.nuevo_producto?.nombre || match.inventory.producto)
+          : (item.line_overrides?.nombre || match.inventory.producto);
         message.replaceChildren(icon, document.createTextNode(
-          `${isNew ? ' Se creará ' : ' '}${match.inventory.codigo} · ${match.inventory.producto}`
+          `${isNew ? ' Se creará ' : ' '}${match.inventory.codigo} · ${displayName}`
+          + (item.line_overrides ? '  ·  editado' : '')
         ));
         salePreview.replaceChildren();
         const label = document.createElement('label');
@@ -1959,11 +1977,13 @@ function renderItems(items) {
           priceInput.value = item.sale_price.toFixed(2);
           priceInput.disabled = true;
           price.textContent = `Venta: ${money(item.sale_price)}`;
+          refreshMarginFlag();
         };
         if (item.sale_margin_percent !== 'manual' && !Number.isFinite(Number(item.sale_price))) {
           item.sale_price = calculateXmlSalePrice(38);
         }
         renderSalePrice();
+        refreshMarginFlag();
         select.addEventListener('change', () => {
           item.sale_margin_percent = select.value === 'manual' ? 'manual' : Number(select.value);
           renderSalePrice();
@@ -1972,6 +1992,7 @@ function renderItems(items) {
         priceInput.addEventListener('input', () => {
           const value = Number(priceInput.value);
           if (Number.isFinite(value) && value >= 0) item.sale_price = Math.round(value * 100) / 100;
+          refreshMarginFlag();
           scheduleInvoiceDraftSave();
         });
         label.append(' ', select);
@@ -1995,7 +2016,8 @@ function renderItems(items) {
     };
 
     const lookup = async () => {
-      const code = input.value.trim();
+      const code = stripLeadingZeros(input.value.trim());
+      if (input.value.trim() !== code) input.value = code;
       item.internal_code = code;
       if (!code) {
         item.match = { status: 'PENDING', inventory_id: null, inventory: null };
@@ -2131,6 +2153,8 @@ function renderItems(items) {
 
     input.addEventListener('input', () => {
       if (item.recepcion_estado === 'NO_RECIBIDO') return;
+      const stripped = stripLeadingZeros(input.value);
+      if (stripped !== input.value) input.value = stripped;
       window.clearTimeout(numericTimer);
       const prevCode = item.match?.inventory?.codigo || item.nuevo_producto?.codigo || null;
       item.match = { status: 'PENDING', inventory_id: null, inventory: null };
@@ -2157,6 +2181,7 @@ function renderItems(items) {
       if (event.key !== 'Enter') return;
       event.preventDefault();
       window.clearTimeout(numericTimer);
+      input.value = stripLeadingZeros(input.value.trim());
       const raw = input.value.trim();
       // 6+ dígitos solo numéricos: vincula el código exacto o, si no existe,
       // abre el modal de producto nuevo con ese código.
