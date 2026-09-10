@@ -930,8 +930,9 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .xml-receipt-button.state-parcial.selected { border-color: #c98a1a; background: #fdeecb; color: #8a5a00; }
 .xml-receipt-button.state-no_recibido.selected { border-color: #c54848; background: #ffe1e1; color: #9b2c2c; }
 
-.line-actions-cell { white-space: nowrap; }
-.line-actions { display: inline-flex; gap: 4px; }
+.line-actions-cell { white-space: nowrap; vertical-align: top; }
+.line-actions { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.line-actions-info { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; font-size: 10.5px; font-weight: 700; color: #6b737b; font-variant-numeric: tabular-nums; }
 .line-action-btn { width: 26px; height: 26px; padding: 0; border: 1px solid #c7cdd3; border-radius: 4px; background: #fff; color: #55606a; cursor: pointer; }
 .line-action-btn:hover { background: var(--soft); color: #262b31; }
 .line-action-btn[data-line-action="quitar"]:hover { border-color: #c54848; color: #9b2c2c; }

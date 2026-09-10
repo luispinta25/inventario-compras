@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260910.3';
+const APP_BUILD = '20260910.4';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -1861,7 +1861,19 @@ function renderItems(items) {
       return Math.round(unitNetCost * 1.15 * 1.05 * (1 + Number(gain) / 100) * 100) / 100;
     };
 
+    // Info siempre visible en la columna de acciones (se asigna al construir la celda).
+    let actionSugeridoEl = null;
+    let actionActualEl = null;
+    const refreshActionInfo = () => {
+      if (actionSugeridoEl) actionSugeridoEl.textContent = `Sugerido 38% ${money(calculateXmlSalePrice(38))}`;
+      if (actionActualEl) {
+        const actual = item.match?.status === 'MATCHED' ? Number(item.match.inventory?.precio) : NaN;
+        actionActualEl.textContent = Number.isFinite(actual) && actual > 0 ? `Actual ${money(actual)}` : 'Actual —';
+      }
+    };
+
     const renderMatch = () => {
+      refreshActionInfo();
       const match = item.match || {};
       const icon = document.createElement('i');
       icon.setAttribute('aria-hidden', 'true');
@@ -1875,6 +1887,21 @@ function renderItems(items) {
       }
       if (((match.status === 'MATCHED' || match.status === 'NEW') && match.inventory)) {
         const isNew = match.status === 'NEW';
+        // Al vincular (o cambiar) el producto: si YA lo tenemos, el precio de
+        // venta por defecto es el ACTUAL del inventario (modo Manual, editable).
+        // Producto nuevo: sugerido al 38%. Si el usuario ya eligió un valor para
+        // este mismo código, se respeta (no se re-inicializa).
+        if (item._priceForCode !== match.inventory.codigo) {
+          item._priceForCode = match.inventory.codigo;
+          const precioActual = Number(match.inventory?.precio);
+          if (!isNew && Number.isFinite(precioActual) && precioActual > 0) {
+            item.sale_price = Math.round(precioActual * 100) / 100;
+            item.sale_margin_percent = 'manual';
+          } else {
+            item.sale_margin_percent = 38;
+            item.sale_price = calculateXmlSalePrice(38);
+          }
+        }
         message.className = `line-status ${isNew ? 'checking' : 'matched'} internal-sku-message`;
         icon.className = isNew ? 'fa-solid fa-wand-magic-sparkles' : 'fa-solid fa-link';
         message.replaceChildren(icon, document.createTextNode(
@@ -2048,6 +2075,7 @@ function renderItems(items) {
       updateContinueEntryState();
     };
     const openNewProductForLine = async (code) => {
+      const before = input.value.trim();
       try {
         if (typeof window.ingresoRegistro?.openNewProduct !== 'function') {
           await loadRegisterModule();
@@ -2057,17 +2085,22 @@ function renderItems(items) {
       const created = await window.ingresoRegistro.openNewProduct({
         code, description: item.description, cost: Number(item.unit_cost) || 0
       });
-      if (!created || input.value.trim() !== code) return;
+      // Se descarta si el usuario cambió el SKU mientras el modal estaba abierto.
+      if (!created || input.value.trim() !== before) return;
       item.nuevo_producto = created;
       item.internal_code = created.codigo;
+      item._priceForCode = undefined;
       // El precio de venta y el % de ganancia se eligen en el control "Ganancia"
-      // de la fila (renderMatch pone 38% por defecto).
+      // de la fila (renderMatch pone 38% por defecto para productos nuevos).
       item.match = { status: 'NEW', inventory: { id: null, codigo: created.codigo, producto: created.nombre } };
       input.value = created.codigo;
       suggestions.replaceChildren();
       renderMatch();
       updateContinueEntryState();
     };
+    // Debounce: solo vincula automáticamente un código EXACTO ya existente. Un
+    // código nuevo NO abre el modal aquí — se hace con Enter (6+ dígitos) o con
+    // el botón "Nuevo" de la columna de acciones.
     const scheduleNumericResolve = (query) => {
       window.clearTimeout(numericTimer);
       numericTimer = window.setTimeout(async () => {
@@ -2079,17 +2112,22 @@ function renderItems(items) {
           const response = await posApiRequest(`/api/purchases/v2/inventory/lookup?${new URLSearchParams({ code: query })}`, { method: 'GET' });
           internalProductLookupCache.set(query, response.data);
           if (input.value.trim() === query) linkInventory(response.data);
-          return;
-        } catch (_) { /* no existe: sigue abajo */ }
-        if (query.length >= 6 && input.value.trim() === query) openNewProductForLine(query);
+        } catch (_) { /* no existe: se resuelve con Enter o el botón Nuevo */ }
       }, 260);
     };
 
     input.addEventListener('input', () => {
       if (item.recepcion_estado === 'NO_RECIBIDO') return;
       window.clearTimeout(numericTimer);
+      const prevCode = item.match?.inventory?.codigo || item.nuevo_producto?.codigo || null;
       item.match = { status: 'PENDING', inventory_id: null, inventory: null };
       item.nuevo_producto = null;
+      // Cambiar el SKU de una línea ya vinculada descarta sus ajustes previos.
+      if (prevCode) {
+        item.line_overrides = null;
+        item.desglose = null;
+        item._priceForCode = undefined;
+      }
       renderMatch();
       updateContinueEntryState();
       const query = input.value.trim();
@@ -2102,12 +2140,27 @@ function renderItems(items) {
     });
     input.addEventListener('focus', revealSkuColumn);
     input.addEventListener('click', revealSkuColumn);
-    input.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        window.clearTimeout(numericTimer);
-        lookup();
+    input.addEventListener('keydown', async (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      window.clearTimeout(numericTimer);
+      const raw = input.value.trim();
+      // 6+ dígitos solo numéricos: vincula el código exacto o, si no existe,
+      // abre el modal de producto nuevo con ese código.
+      if (/^\d{6,}$/.test(raw)) {
+        const hit = internalProductLookupCache.get(raw)
+          || internalProductCatalog.find((product) => String(product.codigo) === raw);
+        if (hit) return void linkInventory(hit);
+        try {
+          const response = await posApiRequest(`/api/purchases/v2/inventory/lookup?${new URLSearchParams({ code: raw })}`, { method: 'GET' });
+          internalProductLookupCache.set(raw, response.data);
+          linkInventory(response.data);
+        } catch (_) {
+          await openNewProductForLine(raw);
+        }
+        return;
       }
+      lookup();
     });
     input.addEventListener('blur', () => {
       if (item.recepcion_estado === 'NO_RECIBIDO') return;
@@ -2136,6 +2189,7 @@ function renderItems(items) {
     if (item.recepcion_estado === 'NO_RECIBIDO') {
       addAction('deshacer', 'fa-rotate-left', 'Deshacer: volver a recibir este producto');
     } else {
+      addAction('nuevo', 'fa-plus', 'Crear producto nuevo (código manual)');
       addAction('sugerido', 'fa-calculator', 'Precio de venta sugerido (38%)');
       addAction('editar', 'fa-pen-to-square', 'Editar nombre, zona, empaquetado y precio');
       addAction('unidades', 'fa-boxes-packing', item.desglose ? 'Desglose de unidades (activo)' : 'Añadir unidades');
@@ -2152,6 +2206,11 @@ function renderItems(items) {
         rerenderRows();
         return;
       }
+      if (action === 'nuevo') {
+        const raw = input.value.trim();
+        await openNewProductForLine(/^\d{6,}$/.test(raw) ? raw : '');
+        return;
+      }
       try {
         if (typeof window.ingresoRegistro?.rowAction !== 'function') {
           await loadRegisterModule();
@@ -2161,6 +2220,15 @@ function renderItems(items) {
       await window.ingresoRegistro.rowAction(action, { item, rerender: rerenderRows });
     });
     actionsCell.appendChild(actionsWrap);
+    if (item.recepcion_estado !== 'NO_RECIBIDO') {
+      const actionsInfo = document.createElement('div');
+      actionsInfo.className = 'line-actions-info';
+      actionSugeridoEl = document.createElement('span');
+      actionActualEl = document.createElement('span');
+      actionsInfo.append(actionSugeridoEl, actionActualEl);
+      actionsCell.appendChild(actionsInfo);
+      refreshActionInfo();
+    }
     row.appendChild(actionsCell);
 
     elements.itemsBody.appendChild(row);
