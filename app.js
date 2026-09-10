@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260910.10';
+const APP_BUILD = '20260910.11';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -1757,6 +1757,7 @@ function renderLineSubrow(item) {
     chip('Facturado', number(billed));
     chip('A inventario', `${number(invQty)} ${presentacion.unidad_paquete}`);
     chip('Costo unit.', money(costUnit));
+    if (presentacion.precio_venta_unitario) chip('Venta unit.', money(presentacion.precio_venta_unitario));
   } else {
     const upp = Number(desglose.unidades_por_paquete) || 0;
     const paq = Number(desglose.paquetes) || 0;

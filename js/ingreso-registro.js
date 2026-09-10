@@ -335,6 +335,10 @@
       $('presCantidad').value = existing?.cantidad_inventario
         ? String(existing.cantidad_inventario)
         : String(recibida || '');
+      $('presPrecioVenta').value = existing?.precio_venta_unitario
+        ? Number(existing.precio_venta_unitario).toFixed(2)
+        : '';
+      $('presPrecioVenta').dataset.touched = existing?.precio_venta_unitario ? '1' : '';
       $('presError').textContent = '';
       $('presQuitar').hidden = !existing;
       presentacion.grid.select(presentacion.unidad);
@@ -353,6 +357,12 @@
     $('presResumen').textContent = total > 0
       ? `${recibida} recibidas → ${total} ${presentacion.unidad} en inventario · costo unitario ${money(costUnit)}`
       : 'Indica cuántas unidades entran al inventario.';
+    const sug = costUnit > 0 ? computeSalePrice(costUnit, DEFAULT_PCT) : 0;
+    const input = $('presPrecioVenta');
+    if (!input.dataset.touched && sug > 0) input.value = sug.toFixed(2);
+    $('presPrecioVentaHint').textContent = sug > 0
+      ? `Sugerido ${money(sug)} (38% sobre el costo unitario, editable)`
+      : '';
   }
 
   function onPresFactorInput() {
@@ -375,14 +385,17 @@
   function confirmPresentacion() {
     const current = presentacion._current || {};
     const total = Number($('presCantidad').value);
+    const venta = Number($('presPrecioVenta').value);
     if (!(total > 0)) return void ($('presError').textContent = 'La cantidad para inventario debe ser mayor a 0.');
     if (total === Number(current.cantidad_recibida)) {
       return void ($('presError').textContent = 'Esa es la misma cantidad facturada; no hace falta cambiar la presentación.');
     }
+    if (!(venta > 0)) return void ($('presError').textContent = 'El precio de venta unitario debe ser mayor a 0.');
     closePresentacion({
       apply: {
         cantidad_inventario: round(total, 3),
-        unidad_paquete: presentacion.unidad
+        unidad_paquete: presentacion.unidad,
+        precio_venta_unitario: round(venta, 2)
       }
     });
   }
@@ -488,10 +501,12 @@
       } else {
         item.presentacion = result.apply;
         item.desglose = null; // excluyentes
-        // El precio de venta pasa a ser por unidad de inventario: se re-sugiere.
-        item.sale_margin_percent = 38;
-        item.sale_price = null;
-        item._priceForCode = undefined;
+        // El precio de venta unitario se fija en el modal (por unidad de inventario).
+        item.sale_margin_percent = 'manual';
+        item.sale_price = result.apply.precio_venta_unitario;
+        // Se marca como ya inicializado para este código para que renderMatch no
+        // lo vuelva a sobrescribir con el precio antiguo ni con el sugerido.
+        item._priceForCode = linked?.codigo || nuevo?.codigo || item.internal_code || null;
       }
       rerender();
     }
@@ -564,8 +579,11 @@
       if (item.presentacion) {
         base.presentacion = {
           cantidad_inventario: round(Number(item.presentacion.cantidad_inventario) || 0, 3),
-          unidad_paquete: item.presentacion.unidad_paquete || 'UNIDADES'
+          unidad_paquete: item.presentacion.unidad_paquete || 'UNIDADES',
+          precio_venta_unitario: round(Number(item.presentacion.precio_venta_unitario) || 0, 2)
         };
+        // El precio de venta de la línea es el unitario de la presentación.
+        base.precio_venta = base.presentacion.precio_venta_unitario;
       }
       return base;
     });
@@ -780,6 +798,7 @@
     presentacion.grid = buildButtonGrid($('presUnidad'), EMPAQUE_OPTIONS, (v) => v, (v) => { presentacion.unidad = v; syncPresentacion(); });
     $('presCantidad').addEventListener('input', syncPresentacion);
     $('presFactor').addEventListener('input', onPresFactorInput);
+    $('presPrecioVenta').addEventListener('input', (event) => { event.target.dataset.touched = '1'; });
     $('presCancel').addEventListener('click', () => closePresentacion(null));
     $('presClose').addEventListener('click', () => closePresentacion(null));
     $('presConfirm').addEventListener('click', confirmPresentacion);

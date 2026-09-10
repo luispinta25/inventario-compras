@@ -1225,7 +1225,9 @@
             <label>Cantidad total a inventario<input type="number" id="presCantidad" min="0" step="any" inputmode="decimal"></label>
             <label>Factor (× por lo facturado)<input type="number" id="presFactor" min="0" step="any" inputmode="decimal" placeholder="opcional"></label>
           </div>
-          <p class="reg-hint">La factura del proveedor se registra intacta (cantidades y totales no cambian). Esto solo ajusta lo que entra al inventario en este producto. El precio de venta unitario se elige en la fila.</p>
+          <label>Precio de venta unitario<input type="number" id="presPrecioVenta" min="0" step="0.01" inputmode="decimal"></label>
+          <p class="reg-hint" id="presPrecioVentaHint"></p>
+          <p class="reg-hint">La factura del proveedor se registra intacta (cantidades y totales no cambian). Esto solo ajusta lo que entra al inventario en este producto.</p>
         </div>
         <div class="reg-modal-col">
           <p class="reg-field-label">Presentación en inventario</p>
