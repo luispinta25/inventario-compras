@@ -177,7 +177,56 @@
   }
 
   // ======================= Modal: desglose de unidades ===================
-  const unidades = { grid: null, resolver: null, zona: null };
+  const unidades = { grid: null, resolver: null, zona: null, codeToken: 0, existe: false, defaultNombre: '' };
+
+  const stripLeadingZeros = (value) => (/^0\d/.test(value) ? value.replace(/^0+(?=\d)/, '') : value);
+
+  function setUnidadesEstado(text, kind) {
+    const node = $('unCodigoEstado');
+    node.textContent = text;
+    node.className = `reg-hint reg-un-estado${kind ? ` is-${kind}` : ''}`;
+  }
+
+  // Indica en vivo si el código de las unidades ya existe (se actualizará) o si
+  // se creará un producto nuevo. Match por código exacto.
+  async function checkUnidadesCodigo() {
+    const codigo = stripLeadingZeros($('unCodigo').value.trim());
+    if ($('unCodigo').value.trim() !== codigo) $('unCodigo').value = codigo;
+    const token = ++unidades.codeToken;
+    if (!codigo) {
+      setUnidadesEstado('', '');
+      unidades.existe = false;
+      $('unNombre').readOnly = false;
+      return;
+    }
+    setUnidadesEstado('Verificando código…', '');
+    const fromCatalog = (app().inventoryCatalog?.get?.() || [])
+      .find((product) => String(product.codigo) === codigo);
+    let hit = fromCatalog || null;
+    if (!hit) {
+      try {
+        const response = await app().posApiRequest(
+          `/api/purchases/v2/inventory/lookup?${new URLSearchParams({ code: codigo })}`, { method: 'GET' }
+        );
+        hit = response?.data || null;
+      } catch (_) { hit = null; }
+    }
+    if (token !== unidades.codeToken) return;
+    if (hit) {
+      unidades.existe = true;
+      const nombre = hit.producto || hit.nombre || '';
+      setUnidadesEstado(`Ya existe: ${nombre} · se actualizará stock, costo y precio (el nombre no cambia).`, 'ok');
+      $('unNombre').value = nombre.toUpperCase();
+      $('unNombre').readOnly = true;
+    } else {
+      unidades.existe = false;
+      setUnidadesEstado('No existe: se creará un producto nuevo con este código.', 'new');
+      if ($('unNombre').readOnly) {
+        $('unNombre').value = unidades.defaultNombre;
+        $('unNombre').readOnly = false;
+      }
+    }
+  }
 
   function openUnidades(current) {
     return new Promise((resolve) => {
@@ -196,6 +245,10 @@
       $('unUpp').value = upp;
       $('unCodigo').value = baseCodigo;
       $('unNombre').value = baseNombre.toUpperCase();
+      $('unNombre').readOnly = false;
+      unidades.defaultNombre = baseNombre.toUpperCase();
+      unidades.existe = false;
+      setUnidadesEstado('', '');
       $('unPrecioVenta').value = existing?.precio_venta_unitario
         ? Number(existing.precio_venta_unitario).toFixed(2)
         : '';
@@ -205,6 +258,7 @@
       unidades._current = current;
       unidades.grid.select(unidades.zona);
       syncUnidades();
+      checkUnidadesCodigo();
       $('unidadesModal').hidden = false;
       window.setTimeout(() => $('unPaquetes').focus(), 60);
     });
@@ -239,7 +293,7 @@
     const current = unidades._current || {};
     const paquetes = Number($('unPaquetes').value);
     const upp = Number($('unUpp').value);
-    const codigo = $('unCodigo').value.trim();
+    const codigo = stripLeadingZeros($('unCodigo').value.trim());
     const nombre = $('unNombre').value.trim().toUpperCase();
     const venta = Number($('unPrecioVenta').value);
     if (!(paquetes > 0)) return void ($('unError').textContent = 'Indica cuántos paquetes desglosar.');
@@ -598,6 +652,11 @@
 
     unidades.grid = buildButtonGrid($('unZona'), ZONA_OPTIONS, (v) => String(v), (v) => { unidades.zona = v; });
     ['unPaquetes', 'unUpp'].forEach((id) => $(id).addEventListener('input', syncUnidades));
+    let unCodigoTimer;
+    $('unCodigo').addEventListener('input', () => {
+      window.clearTimeout(unCodigoTimer);
+      unCodigoTimer = window.setTimeout(checkUnidadesCodigo, 260);
+    });
     $('unPrecioVenta').addEventListener('input', (event) => { event.target.dataset.touched = '1'; });
     $('unCancel').addEventListener('click', () => closeUnidades(null));
     $('unClose').addEventListener('click', () => closeUnidades(null));
