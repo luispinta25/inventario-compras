@@ -24,7 +24,8 @@
     providers: [],
     providersLoaded: false,
     current: null,
-    visitToken: 0
+    visitToken: 0,
+    bankAccounts: []
   };
 
   const el = (id) => document.getElementById(id);
@@ -503,6 +504,56 @@
   }
 
   // ---- Registro de pagos ---------------------------------------------------
+  // Cuentas bancarias para pagar por transferencia: saldo real por banco
+  // (ferre_saldos_bancarios). Si Pichincha y Deuna están consolidadas llegan
+  // fusionadas como una sola cuenta desde el backend (misma cuenta real).
+  const BANK_ACCOUNTS_API = '/api/purchases/v2/bank-accounts';
+
+  async function loadBankAccounts() {
+    try {
+      const response = await window.app.posApiRequest(BANK_ACCOUNTS_API, { method: 'GET' });
+      state.bankAccounts = response?.data?.accounts || [];
+    } catch (_) {
+      state.bankAccounts = [];
+    }
+    renderBankOptions();
+  }
+
+  function renderBankOptions() {
+    const select = el('invPagoBanco');
+    const previous = select.value;
+    select.innerHTML = '<option value="">Selecciona una cuenta</option>' + state.bankAccounts.map((account) => (
+      `<option value="${account.codigo}">${account.nombre} — saldo ${money(account.saldo)}</option>`
+    )).join('');
+    if (state.bankAccounts.some((account) => account.codigo === previous)) select.value = previous;
+    syncPagoBancoSaldo();
+  }
+
+  function syncPagoMetodo() {
+    const isTransferencia = el('invPagoMetodo').value === 'TRANSFERENCIA';
+    el('invPagoBancoWrap').hidden = !isTransferencia;
+    if (isTransferencia && !state.bankAccounts.length) loadBankAccounts();
+    else syncPagoBancoSaldo();
+  }
+
+  function syncPagoBancoSaldo() {
+    const hint = el('invPagoBancoSaldo');
+    const codigo = el('invPagoBanco').value;
+    const account = state.bankAccounts.find((item) => item.codigo === codigo);
+    if (!account) {
+      hint.textContent = '';
+      hint.classList.remove('is-warn');
+      return;
+    }
+    const monto = Number(el('invPagoMonto').value) || 0;
+    const restante = Math.round((account.saldo - monto) * 100) / 100;
+    const insuficiente = monto > 0 && monto > account.saldo + 0.001;
+    hint.textContent = insuficiente
+      ? `Saldo insuficiente en ${account.nombre}: disponible ${money(account.saldo)}, faltan ${money(monto - account.saldo)}.`
+      : `Saldo en ${account.nombre}: ${money(account.saldo)} → queda ${money(Math.max(restante, 0))} tras este pago.`;
+    hint.classList.toggle('is-warn', insuficiente);
+  }
+
   function preparePagoForm(invoice) {
     const form = el('invPagoForm');
     form.reset();
@@ -516,6 +567,7 @@
     const settled = !(invoice.saldo_pendiente > 0) || invoice.archivada;
     el('invPagoSubmit').disabled = settled;
     el('invPagoForm').classList.toggle('is-locked', settled);
+    syncPagoMetodo();
   }
 
   function syncPagoTipo() {
@@ -529,6 +581,7 @@
       monto.readOnly = false;
       if (Number(monto.value) === Number(invoice.saldo_pendiente)) monto.value = '';
     }
+    syncPagoBancoSaldo();
   }
 
   function validatePago() {
@@ -542,9 +595,22 @@
     if (!Number.isFinite(monto) || monto <= 0) return { error: 'El monto del pago no es válido.' };
     if (monto > saldo + 0.01) return { error: 'El monto no puede superar el saldo pendiente.' };
     monto = Math.min(monto, saldo);
+    const metodoPago = el('invPagoMetodo').value;
+    let metodoTransferenciaCodigo;
+    if (metodoPago === 'TRANSFERENCIA') {
+      metodoTransferenciaCodigo = el('invPagoBanco').value;
+      if (!metodoTransferenciaCodigo) return { error: 'Selecciona la cuenta bancaria de origen.' };
+      const cuenta = state.bankAccounts.find((account) => account.codigo === metodoTransferenciaCodigo);
+      // Aviso adelantado; el bloqueo real (y a prueba de condiciones de
+      // carrera) lo hace el backend al registrar.
+      if (cuenta && monto > cuenta.saldo + 0.001) {
+        return { error: `Saldo insuficiente en ${cuenta.nombre}: disponible ${money(cuenta.saldo)}.` };
+      }
+    }
     return {
       monto,
-      metodo_pago: el('invPagoMetodo').value,
+      metodo_pago: metodoPago,
+      metodo_transferencia_codigo: metodoTransferenciaCodigo,
       tipo_pago: tipo,
       referencia_pago: referencia,
       notas: el('invPagoNotas').value.trim() || undefined
@@ -1552,6 +1618,9 @@
     });
 
     el('invPagoTipo').addEventListener('change', syncPagoTipo);
+    el('invPagoMetodo').addEventListener('change', syncPagoMetodo);
+    el('invPagoBanco').addEventListener('change', syncPagoBancoSaldo);
+    el('invPagoMonto').addEventListener('input', syncPagoBancoSaldo);
     el('invPagoCancel').addEventListener('click', closeModal);
     el('invPagoForm').addEventListener('submit', submitPago);
 

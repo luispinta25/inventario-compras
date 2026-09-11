@@ -688,6 +688,14 @@
                     <option value="TRANSFERENCIA">Transferencia</option>
                   </select>
                 </label>
+                <div class="invoice-pago-full invoice-pago-banco" id="invPagoBancoWrap" hidden>
+                  <label>Cuenta de origen
+                    <select id="invPagoBanco">
+                      <option value="">Selecciona una cuenta</option>
+                    </select>
+                  </label>
+                  <p class="invoice-pago-banco-saldo" id="invPagoBancoSaldo"></p>
+                </div>
                 <label>Tipo de pago
                   <select id="invPagoTipo" required>
                     <option value="Abono">Abono</option>

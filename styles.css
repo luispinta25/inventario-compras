@@ -823,6 +823,9 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .invoice-pago-saldo { margin: 0; font-size: 13px; color: var(--muted); }
 .invoice-pago-saldo strong { color: var(--ink); font-variant-numeric: tabular-nums; }
 .invoice-pago-error { margin: 0; padding: 10px 12px; border-radius: 6px; background: var(--red-soft); color: var(--red); font-size: 13px; font-weight: 650; }
+.invoice-pago-banco { display: flex; flex-direction: column; gap: 6px; }
+.invoice-pago-banco-saldo { margin: 0; font-size: 12px; font-weight: 700; color: var(--muted); }
+.invoice-pago-banco-saldo.is-warn { color: var(--red); }
 .invoice-pago-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .invoice-pago-form.is-locked input, .invoice-pago-form.is-locked select, .invoice-pago-form.is-locked textarea { opacity: .6; pointer-events: none; }
 
