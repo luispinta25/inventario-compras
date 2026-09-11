@@ -49,15 +49,27 @@
   function computeSalePrice(cost, pct) {
     return round(Number(cost || 0) * 1.15 * 1.05 * (1 + Number(pct) / 100), 2);
   }
+  // Costo neto por unidad FACTURADA (todavia no por unidad de inventario):
+  // resta el descuento de ESA linea tal como ya viene en precioTotalSinImpuesto
+  // del XML (el SRI exige que ese campo venga neto). Con proveedores que dan
+  // buen descuento por linea (ej. American Home) usar el precio unitario
+  // crudo infla el costo y, con el, el precio sugerido y lo que se guarda en
+  // inventario. El reparto entre lo recibido / la presentacion lo hace el
+  // backend con la misma cantidad que ya recibe en el payload.
+  function unitNetCost(item) {
+    const quantity = Number(item.quantity) || 1;
+    const subtotal = Number(item.subtotal) || 0;
+    return round(quantity > 0 && subtotal > 0 ? subtotal / quantity : Number(item.unit_cost) || 0, 4);
+  }
   // Precio de venta equivalente de UNA unidad facturada (caja/bulto) para usar
   // como base al desglosar o cambiar presentacion. Si el producto ya existe, es
-  // su precio actual de inventario; si es nuevo, se calcula desde el costo al
-  // 38%. Nunca se usa item.sale_price aqui: cuando la linea ya tiene
+  // su precio actual de inventario; si es nuevo, se calcula desde el costo neto
+  // al 38%. Nunca se usa item.sale_price aqui: cuando la linea ya tiene
   // presentacion ese valor es el precio POR UNIDAD suelta, no por caja.
   function equivalentBoxSalePrice(item) {
     const linkedPrice = Number(item.match?.inventory?.precio) || 0;
     if (linkedPrice > 0) return round(linkedPrice, 2);
-    const cost = Number(item.unit_cost) || 0;
+    const cost = unitNetCost(item);
     return cost > 0 ? computeSalePrice(cost, DEFAULT_PCT) : 0;
   }
 
@@ -484,11 +496,8 @@
   // Llamado desde renderItems (app.js). item = linea del draft; rerender = redibuja.
   async function rowAction(action, { item, rerender }) {
     if (action === 'sugerido') {
-      const cost = Number(item.unit_cost) || 0;
-      const quantity = Number(item.quantity) || 1;
-      const unitNet = Number(item.subtotal) > 0 ? Number(item.subtotal) / quantity : cost;
       item.sale_margin_percent = DEFAULT_PCT;
-      item.sale_price = computeSalePrice(unitNet, DEFAULT_PCT);
+      item.sale_price = computeSalePrice(unitNetCost(item), DEFAULT_PCT);
       rerender();
       return;
     }
@@ -510,7 +519,7 @@
       const current = {
         codigo: nuevo?.codigo || linked?.codigo || item.internal_code || '',
         nombre: (item.line_overrides?.nombre || nuevo?.nombre || linked?.producto || item.description || ''),
-        costo: Number(item.unit_cost) || 0,
+        costo: unitNetCost(item),
         unidad_paquete: item.line_overrides?.unidad_paquete || nuevo?.unidad_paquete || linked?.unidad_paquete || 'UNIDADES',
         zona: item.line_overrides?.zona ?? nuevo?.zona ?? linked?.zona ?? ''
       };
@@ -544,7 +553,7 @@
         codigo: nuevo?.codigo || linked?.codigo || item.internal_code || '',
         nombre: (item.line_overrides?.nombre || nuevo?.nombre || linked?.producto || item.description || ''),
         descripcion_xml: item.description || '',
-        costo: Number(item.unit_cost) || 0,
+        costo: unitNetCost(item),
         precio_venta: equivalentBoxSalePrice(item),
         zona: item.line_overrides?.zona ?? nuevo?.zona ?? linked?.zona ?? 1,
         cantidad_recibida: recibida,
@@ -568,7 +577,7 @@
       const current = {
         codigo: nuevo?.codigo || linked?.codigo || item.internal_code || '',
         nombre: (item.line_overrides?.nombre || nuevo?.nombre || linked?.producto || item.description || ''),
-        costo: Number(item.unit_cost) || 0,
+        costo: unitNetCost(item),
         precio_venta: equivalentBoxSalePrice(item),
         cantidad_facturada: quantity,
         cantidad_recibida: recibida,
@@ -622,7 +631,12 @@
         motivo: estado === 'COMPLETA' ? null : (item.nota_recepcion || null),
         cantidad: round(Number(item.quantity) || 0, 3),
         cantidad_recibida: estado === 'PARCIAL' ? round(Number(item.cantidad_recibida) || 0, 3) : null,
+        // costo = precio unitario tal como esta en la factura (bruto, para
+        // que el detalle historico coincida con el documento del proveedor).
+        // costo_neto = ese mismo costo ya restado el descuento de esta linea:
+        // es lo que el backend usa para el costo real que queda en inventario.
         costo: round(Number(item.unit_cost) || 0, 4),
+        costo_neto: unitNetCost(item),
         precio_venta: round(Number(item.sale_price) || 0, 2),
         porcentaje_ganancia: item.sale_margin_percent === 'manual' ? null : (item.sale_margin_percent ?? null),
         codigo_proveedor: item.provider_primary_code || item.provider_auxiliary_code || null,
