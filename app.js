@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260910.13';
+const APP_BUILD = '20260910.14';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -2517,6 +2517,63 @@ async function resolveProvider(draft) {
   setProviderMatch('matched', `Vinculado como ${data.empresa}`);
 }
 
+// Autovinculación: pide al backend los productos internos ya asociados a los
+// códigos que trae el XML para este proveedor (ferre_producto_proveedor) y los
+// aplica a las líneas que aún no están resueltas. La asociación se aprende al
+// registrar una factura. Todo queda editable.
+async function autolinkProviderCodes(draft) {
+  if (!matchedProvider?.id || !Array.isArray(draft?.items) || !draft.items.length) return;
+  const pendingLine = (item) => {
+    const linked = item.match && (item.match.inventory || item.match.status === 'MATCHED' || item.match.status === 'NEW');
+    return !linked && !item.internal_code && !item.nuevo_producto
+      && (item.provider_primary_code || item.provider_auxiliary_code);
+  };
+  const codes = [];
+  draft.items.forEach((item, index) => {
+    if (!pendingLine(item)) return;
+    codes.push({
+      line: item.line ?? index,
+      primary: item.provider_primary_code || null,
+      auxiliary: item.provider_auxiliary_code || null
+    });
+  });
+  if (!codes.length) return;
+
+  let resolved;
+  try {
+    const res = await posApiRequest('/api/purchases/v2/inventory/resolve-provider-codes', {
+      method: 'POST',
+      body: JSON.stringify({ proveedor_id: matchedProvider.id, codes })
+    });
+    resolved = Array.isArray(res?.data) ? res.data : [];
+  } catch (_) {
+    return;
+  }
+  if (!resolved.length) return;
+
+  const byLine = new Map();
+  const byCode = new Map();
+  resolved.forEach((entry) => {
+    if (entry.line != null) byLine.set(String(entry.line), entry);
+    if (entry.matched_code) byCode.set(String(entry.matched_code), entry);
+  });
+
+  let applied = 0;
+  draft.items.forEach((item, index) => {
+    if (!pendingLine(item)) return;
+    const entry = byLine.get(String(item.line ?? index))
+      || byCode.get(String(item.provider_primary_code || ''))
+      || byCode.get(String(item.provider_auxiliary_code || ''));
+    if (!entry || !entry.inventory) return;
+    item.internal_code = entry.inventory.codigo;
+    item.match = { status: 'MATCHED', inventory_id: entry.inventory.id, inventory: entry.inventory };
+    item._priceForCode = undefined;
+    maybeApplyStoredPresentacion(item, entry.inventory);
+    applied += 1;
+  });
+  if (applied) renderItems(draft.items);
+}
+
 async function renderDraft(draft) {
   currentDraft = draft;
   // Se limpia el proveedor de la factura anterior hasta que `resolveProvider`
@@ -2554,6 +2611,7 @@ async function renderDraft(draft) {
   loadRegisterModule().then(() => window.initIngresoRegistro()).catch(() => {});
   elements.review.hidden = false;
   await resolveProvider(draft);
+  await autolinkProviderCodes(draft);
   saveInvoiceDraftNow();
   elements.review.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
