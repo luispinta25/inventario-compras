@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260910.14';
+const APP_BUILD = '20260910.15';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -1083,6 +1083,12 @@ function renderPendingDocuments(canDelete = false) {
     content.type = 'button';
     content.className = 'pending-document-open';
     content.dataset.pendingOpen = record.id;
+    const total = Number(record.item_count) || 0;
+    const linked = Number(record.linked_count);
+    const hasLinked = Number.isFinite(linked);
+    const productosDd = hasLinked
+      ? `<dd title="${linked} de ${total} se autovinculan por código de proveedor">${linked}/${total}</dd>`
+      : `<dd>${escapeHtml(record.item_count)}</dd>`;
     content.innerHTML = `
       <header>
         <div><span>${escapeHtml(record.provider_name)}</span><strong>${escapeHtml(record.invoice_number)}</strong></div>
@@ -1090,7 +1096,7 @@ function renderPendingDocuments(canDelete = false) {
       </header>
       <dl>
         <div><dt>Emisión</dt><dd>${escapeHtml(date(record.issue_date))}</dd></div>
-        <div><dt>Productos</dt><dd>${escapeHtml(record.item_count)}</dd></div>
+        <div><dt>Vinculados</dt>${productosDd}</div>
         <div><dt>Total</dt><dd>${escapeHtml(money(record.total))}</dd></div>
         <div><dt>Capturada</dt><dd>${escapeHtml(new Date(record.created_at).toLocaleString('es-EC'))}</dd></div>
       </dl>`;
