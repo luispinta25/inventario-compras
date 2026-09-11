@@ -532,7 +532,9 @@
   function syncPagoMetodo() {
     const isTransferencia = el('invPagoMetodo').value === 'TRANSFERENCIA';
     el('invPagoBancoWrap').hidden = !isTransferencia;
-    if (isTransferencia && !state.bankAccounts.length) loadBankAccounts();
+    // Recarga saldos cada vez que se activa Transferencia: pueden cambiar
+    // entre una factura y otra (otros pagos, gastos, etc.).
+    if (isTransferencia) loadBankAccounts();
     else syncPagoBancoSaldo();
   }
 
