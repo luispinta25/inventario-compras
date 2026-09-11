@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260911.4';
+const APP_BUILD = '20260911.5';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -2617,6 +2617,7 @@ async function renderDraft(draft) {
   // Se limpia el proveedor de la factura anterior hasta que `resolveProvider`
   // vuelva a resolverlo: evita habilitar "Registrar" con un proveedor obsoleto.
   matchedProvider = null;
+  elements.saveToPendingButton.hidden = true;
   elements.saveToPendingButton.disabled = true;
   if (elements.registerInvoiceButton) elements.registerInvoiceButton.disabled = true;
   const warningCount = draft.warnings.length;
@@ -3088,7 +3089,9 @@ async function requestPreview(path, body = {}) {
 }
 
 // preview: solo consulta el SRI y muestra el resumen para verificar, sin
-// escribir nada. El guardado en Pendientes se hace después, con confirmación.
+// escribir nada. Si la clave es válida y el proveedor ya quedó identificado,
+// se considera aprobada por quien la escaneó/reconstruyó y pasa sola a
+// Pendientes (ver aviso en la rama "capture.preview" más abajo).
 async function captureDesktopDocument({ preview = false } = {}) {
   const accessKey = elements.accessKeyInput.value;
   clearError();
@@ -3118,7 +3121,16 @@ async function captureDesktopDocument({ preview = false } = {}) {
         setText('providerName', capture.provider.empresa);
         setProviderMatch('matched', `Vinculado como ${capture.provider.empresa}`);
       }
-      elements.saveToPendingButton.disabled = !matchedProvider;
+      // La clave es válida, el SRI encontró la factura y el proveedor ya
+      // quedó identificado: eso ya es la aprobación de quien la escaneó o
+      // reconstruyó. Antes hacía falta un clic más en "Guardar en pendientes"
+      // (ya retirado del PC); ahora pasa sola, con un aviso.
+      if (matchedProvider) {
+        await askAlert('Clave válida y proveedor identificado. Esta factura ingresará a Pendientes.');
+        return captureDesktopDocument({ preview: false });
+      }
+      elements.saveToPendingButton.hidden = false;
+      elements.saveToPendingButton.disabled = false;
       return true;
     }
     if (capture.document.status === 'REGISTRADO') {
@@ -3132,6 +3144,7 @@ async function captureDesktopDocument({ preview = false } = {}) {
     pendingLeaseRefreshedAt = Date.now();
     providerLinkContinuation = null;
     await renderDraft(claimed.data.datos_extraidos);
+    elements.saveToPendingButton.hidden = true;
     elements.saveToPendingButton.disabled = true;
     setProviderMatch('matched', capture.duplicate
       ? 'Ya estaba en Pendientes; no se duplicó'

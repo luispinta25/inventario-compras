@@ -426,7 +426,11 @@
                 <i class="fa-solid fa-download" aria-hidden="true"></i>
                 Descargar borrador
               </button>
-              <button type="button" class="button button-secondary" id="saveToPendingButton" disabled>
+              <!-- Oculto por defecto: la clave válida con proveedor identificado pasa
+                   sola a Pendientes (ver captureDesktopDocument en app.js). Solo se
+                   muestra en el caso excepcional de que, sin pedir vincular proveedor,
+                   igual no haya quedado uno identificado. -->
+              <button type="button" class="button button-secondary" id="saveToPendingButton" hidden disabled>
                 <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>
                 Guardar en pendientes
               </button>
