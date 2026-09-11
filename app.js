@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260910.18';
+const APP_BUILD = '20260910.19';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -1828,6 +1828,16 @@ function renderLineSubrow(item) {
 
 function renderItems(items) {
   elements.itemsBody.replaceChildren();
+  // Aviso (no bloqueante): más de una línea de esta factura vincula al mismo
+  // producto interno. A veces es intencional (dos códigos de proveedor para la
+  // misma medida genérica) — no impide registrar, solo lo señala.
+  const linesByProduct = new Map();
+  items.forEach((entry) => {
+    const id = entry.match?.status === 'MATCHED' ? entry.match.inventory?.id : null;
+    if (!id) return;
+    if (!linesByProduct.has(id)) linesByProduct.set(id, []);
+    linesByProduct.get(id).push(entry.line);
+  });
   let stripe = 0;
   items.forEach((item) => {
     const row = document.createElement('tr');
@@ -1962,6 +1972,11 @@ function renderItems(items) {
     suggestions.className = 'internal-sku-suggestions';
     const salePreview = document.createElement('div');
     salePreview.className = 'xml-sale-preview';
+    // Aviso (no bloqueante): otra línea de esta factura ya vinculó al MISMO
+    // producto interno. A veces es intencional (dos códigos de proveedor para
+    // la misma medida genérica) — solo se avisa, no impide registrar.
+    const duplicateNotice = document.createElement('div');
+    duplicateNotice.className = 'line-duplicate-notice';
 
     const calculateXmlSalePrice = (gain) => {
       const quantity = Number(item.quantity) || 1;
@@ -2020,6 +2035,7 @@ function renderItems(items) {
     const renderMatch = () => {
       refreshActionInfo();
       refreshMarginFlag();
+      duplicateNotice.replaceChildren();
       const match = item.match || {};
       const icon = document.createElement('i');
       icon.setAttribute('aria-hidden', 'true');
@@ -2069,6 +2085,18 @@ function renderItems(items) {
           `${isNew ? ' Se creará ' : ' '}${match.inventory.codigo} · ${displayName}`
           + (item.line_overrides ? '  ·  editado' : '')
         ));
+        if (!isNew && match.inventory.id) {
+          const siblings = (linesByProduct.get(match.inventory.id) || [])
+            .filter((ln) => ln !== item.line);
+          if (siblings.length) {
+            const warnIcon = document.createElement('i');
+            warnIcon.className = 'fa-solid fa-triangle-exclamation';
+            warnIcon.setAttribute('aria-hidden', 'true');
+            duplicateNotice.replaceChildren(warnIcon, document.createTextNode(
+              ` Mismo producto que ${siblings.length === 1 ? 'la línea' : 'las líneas'} ${siblings.join(', ')} de esta factura — revisa si es intencional.`
+            ));
+          }
+        }
         salePreview.replaceChildren();
         const label = document.createElement('label');
         label.textContent = 'Ganancia';
@@ -2340,7 +2368,7 @@ function renderItems(items) {
     });
     input.disabled = item.recepcion_estado === 'NO_RECIBIDO';
     renderMatch();
-    skuCell.append(input, message, salePreview, suggestions);
+    skuCell.append(input, message, duplicateNotice, salePreview, suggestions);
     row.appendChild(skuCell);
 
     // ---- Columna de acciones -------------------------------------------------
