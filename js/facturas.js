@@ -1101,6 +1101,16 @@
     if (pago.referencia_pago) lines.push(`Referencia: ${pago.referencia_pago}`);
     lines.push(`Saldo anterior: ${money(saldoPrevio)}`, `Saldo nuevo: *${money(saldoNuevo)}*`);
     if (pago.notas) lines.push('', `Notas: ${pago.notas}`);
+    // Solo transferencias: enlace para subir la fotografía del comprobante
+    // (mismo mecanismo que ya usan ventas y gastos). Un pago puede tener más
+    // de un código si se repartió entre 2 bancos (Pichincha/Deuna sin saldo).
+    if (String(pago.metodo_pago || '').toUpperCase() === 'TRANSFERENCIA'
+      && Array.isArray(pago.transferencia_codigos) && pago.transferencia_codigos.length) {
+      lines.push('');
+      pago.transferencia_codigos.forEach((codigo) => {
+        lines.push(`📎 Actualiza el comprobante: https://transferencias.ferrisoluciones.com/?v=${encodeURIComponent(codigo)}`);
+      });
+    }
     return lines.join('\n');
   }
 
