@@ -956,7 +956,12 @@
   }
 
   // Envía una imagen (o solo texto si la imagen falla) al grupo de WhatsApp.
-  async function sendGroupImage(fileName, message, dataUrlFactory) {
+  // linkTransferCodigos (opcional): códigos de ferre_transferencias (PPxxxxx)
+  // a los que este aviso corresponde; el backend guarda ahí el id del
+  // mensaje para poder responderle cuando llegue el comprobante.
+  async function sendGroupImage(fileName, message, dataUrlFactory, linkTransferCodigos) {
+    const linkExtra = Array.isArray(linkTransferCodigos) && linkTransferCodigos.length
+      ? { linkTransferCodigos } : {};
     try {
       const dataUrl = dataUrlFactory();
       const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
@@ -966,13 +971,14 @@
           media: {
             mediatype: 'image', mimetype: 'image/png', media: base64,
             fileName, caption: message, delay: 1000
-          }
+          },
+          ...linkExtra
         })
       });
     } catch (imageError) {
       await window.app.posApiRequest(WHATSAPP_API, {
         method: 'POST',
-        body: JSON.stringify({ text: message, delay: 1000, linkPreview: false })
+        body: JSON.stringify({ text: message, delay: 1000, linkPreview: false, ...linkExtra })
       });
     }
   }
@@ -1115,10 +1121,14 @@
   }
 
   async function sendPaymentNotification(invoice, pago, saldoAntes) {
+    const esTransferencia = String(pago.metodo_pago || '').toUpperCase() === 'TRANSFERENCIA';
+    const codigos = esTransferencia && Array.isArray(pago.transferencia_codigos)
+      ? pago.transferencia_codigos : null;
     await sendGroupImage(
       'pago-proveedor.png',
       buildPaymentMessage(invoice, pago, saldoAntes),
-      () => buildPaymentImage(invoice, pago, saldoAntes)
+      () => buildPaymentImage(invoice, pago, saldoAntes),
+      codigos
     );
   }
 
