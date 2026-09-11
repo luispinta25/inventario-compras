@@ -11,9 +11,13 @@
 (function () {
   const PCT_OPTIONS = [20, 28, 30, 35, 38, 45, 50];
   const DEFAULT_PCT = 38;
-  // Al desglosar / cambiar presentación, la unidad suelta se vende un 30% más
-  // cara que su parte proporcional del precio de la caja (la caja va "en promo").
-  const DESGLOSE_MARKUP = 1.30;
+  // Al desglosar / cambiar presentación, lo suelto se vende más caro que su
+  // parte proporcional del precio de la caja (la caja va "en promo"). Son dos
+  // recargos distintos: "añadir unidades" (paquete -> UNIDADES) siempre un 50%
+  // más; "cambiar presentación" (cualquier otra unidad: metros, libras, fundas,
+  // etc.) un 30% más.
+  const UNIDADES_MARKUP = 1.50;
+  const PRESENTACION_MARKUP = 1.30;
   const EMPAQUE_OPTIONS = [
     'CAJA', 'UNIDADES', 'PAQUETES', 'PAR', 'DOCENA', 'MEDIA DOCENA', 'CIENTOS',
     'MILLAR', 'GRUESA', 'FUNDA', 'BLISTER', 'PACK', 'JUEGO', 'KIT', 'SET',
@@ -287,17 +291,17 @@
     const cost = Number(current.costo) || 0;
     // Precio de venta equivalente de UNA caja/paquete facturado (no el precio
     // por unidad suelta): se reparte entre las unidades que trae y se le suma
-    // el 30% porque suelto se vende mas caro que la caja "en promo".
+    // el 50% porque la unidad suelta se vende mas cara que la caja "en promo".
     const ventaPaquete = Number(current.precio_venta) || 0;
     const costUnit = upp > 0 ? round(cost / upp, 4) : 0;
-    const sugVenta = upp > 0 ? round((ventaPaquete / upp) * DESGLOSE_MARKUP, 2) : 0;
+    const sugVenta = upp > 0 ? round((ventaPaquete / upp) * UNIDADES_MARKUP, 2) : 0;
     $('unResumen').textContent = upp > 0
       ? `${paquetes} paq. → ${round(paquetes * upp, 3)} unidades · costo unitario ${money(costUnit)}`
       : 'Indica cuántas unidades vienen por paquete.';
     const input = $('unPrecioVenta');
     if (!input.dataset.touched && sugVenta > 0) input.value = sugVenta.toFixed(2);
     $('unPrecioVentaHint').textContent = sugVenta > 0
-      ? `Sugerido ${money(sugVenta)} (precio de una caja ${money(ventaPaquete)} ÷ ${upp} + 30%, editable)`
+      ? `Sugerido ${money(sugVenta)} (precio de una caja ${money(ventaPaquete)} ÷ ${upp} + 50%, editable)`
       : '';
   }
 
@@ -383,7 +387,7 @@
       : 'Indica cuántas unidades entran al inventario.';
     // Sugerido: precio de una caja ÷ fundas por caja + 30% (promo por caja).
     const sug = (porCaja > 0 && ventaCaja > 0)
-      ? round((ventaCaja / porCaja) * DESGLOSE_MARKUP, 2)
+      ? round((ventaCaja / porCaja) * PRESENTACION_MARKUP, 2)
       : (costUnit > 0 ? computeSalePrice(costUnit, DEFAULT_PCT) : 0);
     const input = $('presPrecioVenta');
     if (!input.dataset.touched && sug > 0) input.value = sug.toFixed(2);
