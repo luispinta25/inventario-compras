@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260910.12';
+const APP_BUILD = '20260910.13';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -1724,6 +1724,47 @@ function createCell(row, value, className = '') {
 
 // Pseudo-fila informativa bajo una línea con desglose de unidades o cambio de
 // presentación. Solo lectura: detalla lo que entra al inventario.
+// La presentación va como sufijo del nombre (" -UNIDADES", " -LIBRAS", " -PAR").
+// Al cambiar la presentación se reescribe ese sufijo (mismo criterio que la
+// migración 20260910e en la base). Devuelve el nombre que quedará en inventario.
+function applyPresentationSuffix(name, unidad) {
+  const base = String(name || '').replace(/\s*-\s*[\p{L} ]+$/u, '').trim();
+  const u = String(unidad || '').trim().toUpperCase();
+  return u ? `${base} -${u}` : base;
+}
+
+// Autocarga de "cambiar presentación": si el producto vinculado tiene una
+// conversión recordada de un ingreso anterior (1 CAJA -> 10 FUNDA, precio de la
+// unidad), se aplica a la línea. Queda editable en el modal como cualquier otra.
+// Devuelve true si aplicó algo. No pisa una presentación/desglose ya definidos.
+function maybeApplyStoredPresentacion(item, inventory) {
+  const conv = inventory && inventory.presentacion_conversion;
+  const factor = conv ? Number(conv.factor) : 0;
+  if (!conv || !(factor > 0)) return false;
+  if (item.recepcion_estado === 'NO_RECIBIDO') return false;
+  if (item.presentacion || item.desglose) return false;
+  const billed = Number(item.quantity) || 0;
+  const recibida = item.recepcion_estado === 'PARCIAL'
+    ? (Number(item.cantidad_recibida) || 0)
+    : billed;
+  if (!(recibida > 0)) return false;
+  const invQty = Math.round(recibida * factor * 1000) / 1000;
+  if (!(invQty > 0) || invQty === recibida) return false;
+  const precio = Number(conv.precio_venta_unitario) || 0;
+  item.presentacion = {
+    cantidad_inventario: invQty,
+    unidad_paquete: String(conv.unidad_paquete || 'UNIDADES').toUpperCase(),
+    precio_venta_unitario: precio
+  };
+  item.desglose = null;
+  if (precio > 0) {
+    item.sale_price = precio;
+    item.sale_margin_percent = 'manual';
+  }
+  item._priceForCode = inventory.codigo;
+  return true;
+}
+
 function renderLineSubrow(item) {
   const desglose = item.desglose || null;
   const presentacion = item.presentacion || null;
@@ -1753,9 +1794,12 @@ function renderLineSubrow(item) {
   if (presentacion) {
     const invQty = Number(presentacion.cantidad_inventario) || 0;
     const costUnit = invQty > 0 ? (recibida * (Number(item.unit_cost) || 0)) / invQty : 0;
+    const baseNombre = item.line_overrides?.nombre || item.nuevo_producto?.nombre
+      || item.match?.inventory?.producto || item.description || '';
     chip('Presentación', desglose ? '' : (item.internal_code || item.match?.inventory?.codigo || ''));
     chip('Facturado', number(billed));
     chip('A inventario', `${number(invQty)} ${presentacion.unidad_paquete}`);
+    chip('Nombre en inventario', applyPresentationSuffix(baseNombre, presentacion.unidad_paquete));
     chip('Costo unit.', money(costUnit));
     if (presentacion.precio_venta_unitario) chip('Venta unit.', money(presentacion.precio_venta_unitario));
   } else {
@@ -1914,12 +1958,18 @@ function renderItems(items) {
       const totalNet = Number(item.subtotal) > 0
         ? Number(item.subtotal)
         : (Number(item.unit_cost) || 0) * quantity;
-      // Si la línea cambia de presentación, el costo se reparte entre las
-      // unidades que entran al inventario, no entre las facturadas.
+      const netPerBilled = quantity > 0 ? totalNet / quantity : 0;
+      // Recepción parcial: sólo lo recibido entra al inventario, aunque el
+      // subtotal del XML cubra toda la cantidad facturada.
+      const recibida = item.recepcion_estado === 'PARCIAL'
+        ? (Number(item.cantidad_recibida) || 0)
+        : quantity;
+      // Si la línea cambia de presentación, ese costo recibido se reparte entre
+      // las unidades que entran al inventario, no entre las facturadas.
       const invQty = Number(item.presentacion?.cantidad_inventario) > 0
         ? Number(item.presentacion.cantidad_inventario)
-        : quantity;
-      const unitNetCost = invQty > 0 ? totalNet / invQty : 0;
+        : recibida;
+      const unitNetCost = invQty > 0 ? (recibida * netPerBilled) / invQty : 0;
       return Math.round(unitNetCost * 1.15 * 1.05 * (1 + Number(gain) / 100) * 100) / 100;
     };
 
@@ -1978,23 +2028,33 @@ function renderItems(items) {
         // Producto nuevo: sugerido al 38%. Si el usuario ya eligió un valor para
         // este mismo código, se respeta (no se re-inicializa).
         if (item._priceForCode !== match.inventory.codigo) {
-          item._priceForCode = match.inventory.codigo;
-          const precioActual = Number(match.inventory?.precio);
-          // Si la línea cambia de presentación, el precio actual (por la unidad
-          // vieja) ya no aplica: se sugiere al 38% por unidad de inventario.
-          if (!isNew && !item.presentacion && Number.isFinite(precioActual) && precioActual > 0) {
-            item.sale_price = Math.round(precioActual * 100) / 100;
-            item.sale_margin_percent = 'manual';
-          } else {
-            item.sale_margin_percent = 38;
-            item.sale_price = calculateXmlSalePrice(38);
+          // Autocarga de "cambiar presentación" recordada de un ingreso previo
+          // (unidad, factor y precio). Fija su propio _priceForCode y precio.
+          const autoPres = !isNew && maybeApplyStoredPresentacion(item, match.inventory);
+          if (!autoPres) {
+            item._priceForCode = match.inventory.codigo;
+            const precioActual = Number(match.inventory?.precio);
+            // Si la línea cambia de presentación, el precio actual (por la unidad
+            // vieja) ya no aplica: se sugiere al 38% por unidad de inventario.
+            if (!isNew && !item.presentacion && Number.isFinite(precioActual) && precioActual > 0) {
+              item.sale_price = Math.round(precioActual * 100) / 100;
+              item.sale_margin_percent = 'manual';
+            } else {
+              item.sale_margin_percent = 38;
+              item.sale_price = calculateXmlSalePrice(38);
+            }
           }
         }
         message.className = `line-status ${isNew ? 'checking' : 'matched'} internal-sku-message`;
         icon.className = isNew ? 'fa-solid fa-wand-magic-sparkles' : 'fa-solid fa-link';
-        const displayName = isNew
+        let displayName = isNew
           ? (item.nuevo_producto?.nombre || match.inventory.producto)
           : (item.line_overrides?.nombre || match.inventory.producto);
+        // Si la línea cambia de presentación, el nombre en inventario lleva el
+        // nuevo sufijo de unidad (igual que se guardará en la base).
+        if (item.presentacion?.unidad_paquete) {
+          displayName = applyPresentationSuffix(displayName, item.presentacion.unidad_paquete);
+        }
         message.replaceChildren(icon, document.createTextNode(
           `${isNew ? ' Se creará ' : ' '}${match.inventory.codigo} · ${displayName}`
           + (item.line_overrides ? '  ·  editado' : '')
@@ -2098,6 +2158,7 @@ function renderItems(items) {
         }
         if (input.value.trim() !== code) return;
         item.match = { status: 'MATCHED', inventory_id: inventory.id, inventory };
+        if (maybeApplyStoredPresentacion(item, inventory)) { rerenderRows(); return; }
       } catch (error) {
         if (input.value.trim() !== code) return;
         item.match = { status: 'ERROR', inventory_id: null, inventory: null, message: error.message };
@@ -2118,6 +2179,7 @@ function renderItems(items) {
           item.internal_code = product.codigo;
           item.match = { status: 'MATCHED', inventory_id: product.id, inventory: product };
           suggestions.replaceChildren();
+          if (maybeApplyStoredPresentacion(item, product)) { rerenderRows(); return; }
           renderMatch();
           updateContinueEntryState();
         });
@@ -2167,6 +2229,7 @@ function renderItems(items) {
       item.nuevo_producto = null;
       item.match = { status: 'MATCHED', inventory_id: inventory.id, inventory };
       suggestions.replaceChildren();
+      if (maybeApplyStoredPresentacion(item, inventory)) { rerenderRows(); return; }
       renderMatch();
       updateContinueEntryState();
     };

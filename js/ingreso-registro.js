@@ -45,6 +45,17 @@
   function computeSalePrice(cost, pct) {
     return round(Number(cost || 0) * 1.15 * 1.05 * (1 + Number(pct) / 100), 2);
   }
+  // Precio de venta equivalente de UNA unidad facturada (caja/bulto) para usar
+  // como base al desglosar o cambiar presentacion. Si el producto ya existe, es
+  // su precio actual de inventario; si es nuevo, se calcula desde el costo al
+  // 38%. Nunca se usa item.sale_price aqui: cuando la linea ya tiene
+  // presentacion ese valor es el precio POR UNIDAD suelta, no por caja.
+  function equivalentBoxSalePrice(item) {
+    const linkedPrice = Number(item.match?.inventory?.precio) || 0;
+    if (linkedPrice > 0) return round(linkedPrice, 2);
+    const cost = Number(item.unit_cost) || 0;
+    return cost > 0 ? computeSalePrice(cost, DEFAULT_PCT) : 0;
+  }
 
   // -- Deteccion de "unidades por paquete" desde la descripcion del XML --------
   const WORD_UPP = [
@@ -274,6 +285,9 @@
     const upp = Number($('unUpp').value) || 0;
     const paquetes = Number($('unPaquetes').value) || 0;
     const cost = Number(current.costo) || 0;
+    // Precio de venta equivalente de UNA caja/paquete facturado (no el precio
+    // por unidad suelta): se reparte entre las unidades que trae y se le suma
+    // el 30% porque suelto se vende mas caro que la caja "en promo".
     const ventaPaquete = Number(current.precio_venta) || 0;
     const costUnit = upp > 0 ? round(cost / upp, 4) : 0;
     const sugVenta = upp > 0 ? round((ventaPaquete / upp) * DESGLOSE_MARKUP, 2) : 0;
@@ -283,7 +297,7 @@
     const input = $('unPrecioVenta');
     if (!input.dataset.touched && sugVenta > 0) input.value = sugVenta.toFixed(2);
     $('unPrecioVentaHint').textContent = sugVenta > 0
-      ? `Sugerido ${money(sugVenta)} (precio actual ${money(ventaPaquete)} ÷ ${upp} + 30%, editable)`
+      ? `Sugerido ${money(sugVenta)} (precio de una caja ${money(ventaPaquete)} ÷ ${upp} + 30%, editable)`
       : '';
   }
 
@@ -357,20 +371,24 @@
     const current = presentacion._current || {};
     const recibida = Number(current.cantidad_recibida) || 0;
     const costo = Number(current.costo) || 0;
-    const ventaActual = Number(current.precio_venta) || 0;
+    // Precio de venta equivalente de UNA caja/bulto facturado (aunque haya
+    // llegado sólo 1 de 10, el subtotal del XML cubría las 10). El sugerido
+    // reparte ESE precio entre las fundas/paquetes que salen de una caja.
+    const ventaCaja = Number(current.precio_venta) || 0;
     const total = Number($('presCantidad').value) || 0;
     const costUnit = total > 0 ? round((recibida * costo) / total, 4) : 0;
+    const porCaja = (total > 0 && recibida > 0) ? round(total / recibida, 2) : 0;
     $('presResumen').textContent = total > 0
       ? `${recibida} recibidas → ${total} ${presentacion.unidad} en inventario · costo unitario ${money(costUnit)}`
       : 'Indica cuántas unidades entran al inventario.';
-    // Sugerido: precio actual repartido entre las unidades que entran + 30%.
-    const sug = (total > 0 && recibida > 0 && ventaActual > 0)
-      ? round((ventaActual * recibida / total) * DESGLOSE_MARKUP, 2)
+    // Sugerido: precio de una caja ÷ fundas por caja + 30% (promo por caja).
+    const sug = (porCaja > 0 && ventaCaja > 0)
+      ? round((ventaCaja / porCaja) * DESGLOSE_MARKUP, 2)
       : (costUnit > 0 ? computeSalePrice(costUnit, DEFAULT_PCT) : 0);
     const input = $('presPrecioVenta');
     if (!input.dataset.touched && sug > 0) input.value = sug.toFixed(2);
     $('presPrecioVentaHint').textContent = sug > 0
-      ? `Sugerido ${money(sug)} (precio actual ${money(ventaActual)} ÷ ${total > 0 && recibida > 0 ? round(total / recibida, 2) : '—'} + 30%, editable)`
+      ? `Sugerido ${money(sug)} (precio de una caja ${money(ventaCaja)} ÷ ${porCaja || '—'} + 30%, editable)`
       : '';
   }
 
@@ -474,7 +492,7 @@
         nombre: (item.line_overrides?.nombre || nuevo?.nombre || linked?.producto || item.description || ''),
         descripcion_xml: item.description || '',
         costo: Number(item.unit_cost) || 0,
-        precio_venta: item.sale_price || 0,
+        precio_venta: equivalentBoxSalePrice(item),
         zona: item.line_overrides?.zona ?? nuevo?.zona ?? linked?.zona ?? 1,
         cantidad_recibida: recibida,
         desglose: item.desglose || null
@@ -498,7 +516,7 @@
         codigo: nuevo?.codigo || linked?.codigo || item.internal_code || '',
         nombre: (item.line_overrides?.nombre || nuevo?.nombre || linked?.producto || item.description || ''),
         costo: Number(item.unit_cost) || 0,
-        precio_venta: Number(item.sale_price) || Number(linked?.precio) || 0,
+        precio_venta: equivalentBoxSalePrice(item),
         cantidad_facturada: quantity,
         cantidad_recibida: recibida,
         unidad_actual: item.line_overrides?.unidad_paquete || nuevo?.unidad_paquete || linked?.unidad_paquete || 'UNIDADES',
