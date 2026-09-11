@@ -1001,6 +1001,7 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .reg-un-estado { min-height: 15px; font-weight: 700; }
 .reg-un-estado.is-ok { color: #146b3a; }
 .reg-un-estado.is-new { color: #1e40af; }
+.reg-un-estado.is-warn { color: #b42318; }
 .reg-modal-error { margin: 0; min-height: 16px; font-size: 12px; font-weight: 700; color: var(--red); }
 .reg-modal-dialog > footer { padding: 13px 20px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--line); background: var(--soft); }
 .reg-modal-dialog > footer .button-danger { margin-right: auto; }

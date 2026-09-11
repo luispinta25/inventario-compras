@@ -113,25 +113,71 @@
   // ======================= Modal: producto nuevo =========================
   // El precio de venta y el % de ganancia NO se piden aquí: se eligen en la
   // fila, en el control "Ganancia" debajo del SKU.
-  const newProduct = { grids: {}, resolver: null, empaque: 'UNIDADES', zona: null };
+  const newProduct = { grids: {}, resolver: null, empaque: 'UNIDADES', zona: null, existe: false, codeToken: 0 };
+
+  // Nunca se permiten 2 productos con el mismo código: verifica en vivo si el
+  // código ya existe (el backend igual lo rechaza si se intenta registrar,
+  // pero avisar aquí evita perder la línea al momento de registrar la factura).
+  async function checkNewProductCodigo() {
+    const codigo = stripLeadingZeros($('npCodigo').value.trim());
+    if ($('npCodigo').value.trim() !== codigo) $('npCodigo').value = codigo;
+    const token = ++newProduct.codeToken;
+    const node = $('npCodigoEstado');
+    if (!codigo) {
+      newProduct.existe = false;
+      node.textContent = '';
+      node.className = 'reg-hint reg-un-estado';
+      return;
+    }
+    node.textContent = 'Verificando código…';
+    node.className = 'reg-hint reg-un-estado';
+    const fromCatalog = (app().inventoryCatalog?.get?.() || [])
+      .find((product) => String(product.codigo) === codigo);
+    let hit = fromCatalog || null;
+    if (!hit) {
+      try {
+        const response = await app().posApiRequest(
+          `/api/purchases/v2/inventory/lookup?${new URLSearchParams({ code: codigo })}`, { method: 'GET' }
+        );
+        hit = response?.data || null;
+      } catch (_) { hit = null; }
+    }
+    if (token !== newProduct.codeToken) return;
+    newProduct.existe = Boolean(hit);
+    if (hit) {
+      node.textContent = `Ese código ya es "${hit.producto}": no se puede crear como nuevo. Usa otro código o vincula la línea a ese producto.`;
+      node.className = 'reg-hint reg-un-estado is-warn';
+    } else {
+      node.textContent = 'Código disponible: se creará un producto nuevo.';
+      node.className = 'reg-hint reg-un-estado is-ok';
+    }
+  }
 
   function openNewProduct({ code = '', description = '', cost = 0 } = {}) {
     return new Promise((resolve) => {
       newProduct.resolver = resolve;
       newProduct.empaque = 'UNIDADES';
       newProduct.zona = null;
+      newProduct.existe = false;
       $('npCodigo').value = String(code || '').trim();
       $('npNombre').value = String(description || '').trim().toUpperCase();
       $('npCosto').value = Number(cost || 0).toFixed(2);
       $('npStockMin').value = '';
       $('npError').textContent = '';
+      $('npCodigoEstado').textContent = '';
+      $('npCodigoEstado').className = 'reg-hint reg-un-estado';
       newProduct.grids.empaque.select('UNIDADES');
       newProduct.grids.zona.select('');
       $('newProductModal').hidden = false;
       if (!String(code || '').trim()) {
         app().posApiRequest?.('/api/purchases/v2/inventory/next-code', { method: 'GET' })
-          .then((response) => { if (!$('npCodigo').value) $('npCodigo').value = response?.data?.codigo || ''; })
+          .then((response) => {
+            if (!$('npCodigo').value) $('npCodigo').value = response?.data?.codigo || '';
+            checkNewProductCodigo();
+          })
           .catch(() => {});
+      } else {
+        checkNewProductCodigo();
       }
       window.setTimeout(() => $('npNombre').focus(), 60);
     });
@@ -152,6 +198,9 @@
     if (!nombre) return void ($('npError').textContent = 'El nombre es obligatorio.');
     if (!newProduct.zona) return void ($('npError').textContent = 'Selecciona una zona.');
     if (stockMin !== null && !(stockMin >= 0)) return void ($('npError').textContent = 'Stock mínimo inválido.');
+    if (newProduct.existe) {
+      return void ($('npError').textContent = 'Ese código ya existe. Usa otro código o vincula la línea a ese producto en vez de crear uno nuevo.');
+    }
     closeNewProduct({
       codigo,
       nombre,
@@ -589,6 +638,9 @@
         base.unidad_paquete = nuevo.unidad_paquete;
         base.stock_minimo = nuevo.stock_minimo;
         base.inventory_id = null;
+        // El backend rechaza toda la factura si este codigo ya existe, en vez
+        // de fusionar la linea con el producto existente.
+        base.producto_nuevo = true;
       } else {
         base.inventory_id = linked?.id || null;
         base.codigo = linked?.codigo || item.internal_code || null;
@@ -798,6 +850,11 @@
 
     newProduct.grids.empaque = buildButtonGrid($('npEmpaque'), EMPAQUE_OPTIONS, (v) => v, (v) => { newProduct.empaque = v; });
     newProduct.grids.zona = buildButtonGrid($('npZona'), ZONA_OPTIONS, (v) => String(v), (v) => { newProduct.zona = v; });
+    let npCodigoTimer;
+    $('npCodigo').addEventListener('input', () => {
+      window.clearTimeout(npCodigoTimer);
+      npCodigoTimer = window.setTimeout(checkNewProductCodigo, 260);
+    });
     $('npCancel').addEventListener('click', () => closeNewProduct(null));
     $('npClose').addEventListener('click', () => closeNewProduct(null));
     $('npConfirm').addEventListener('click', confirmNewProduct);
