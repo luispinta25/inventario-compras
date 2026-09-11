@@ -608,10 +608,13 @@
         base.presentacion = {
           cantidad_inventario: round(Number(item.presentacion.cantidad_inventario) || 0, 3),
           unidad_paquete: item.presentacion.unidad_paquete || 'UNIDADES',
-          precio_venta_unitario: round(Number(item.presentacion.precio_venta_unitario) || 0, 2)
+          // Informativo: sigue el precio vigente de la fila (item.sale_price),
+          // que es la única fuente de verdad (la actualizan el campo de precio,
+          // la ganancia y las cápsulas Sugerido/Actual). Antes se congelaba aquí
+          // el valor del modal al confirmarlo y luego pisaba base.precio_venta
+          // si el usuario editaba el precio después de aplicar la presentación.
+          precio_venta_unitario: base.precio_venta
         };
-        // El precio de venta de la línea es el unitario de la presentación.
-        base.precio_venta = base.presentacion.precio_venta_unitario;
       }
       return base;
     });
