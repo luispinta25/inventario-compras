@@ -672,6 +672,17 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
   .app-dialog-actions .button { width: 100%; }
 }
 
+/* ============ Bloqueador de pantalla "Guardando..." ============
+   Un doble clic (o un Enter de más) mientras la primera petición sigue en
+   curso podía registrar la misma factura dos veces. z-index por debajo de
+   .app-dialog (1300): el diálogo propio de confirmación siempre debe poder
+   cerrarse aunque el bloqueador esté detrás. pointer-events solo se activa
+   junto con .active para no bloquear clics estando oculto. */
+.saving-blocker-overlay { position: fixed; inset: 0; z-index: 1290; display: flex; align-items: center; justify-content: center; background: rgba(12, 14, 18, 0.4); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .12s ease; }
+.saving-blocker-overlay.active { opacity: 1; visibility: visible; pointer-events: all; }
+.saving-blocker-box { background: var(--surface); color: var(--ink); border-radius: 12px; padding: 16px 26px; display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 700; box-shadow: 0 20px 60px rgba(10, 12, 16, 0.35); }
+.saving-blocker-box i { font-size: 20px; color: var(--accent, #2f6f8f); }
+
 .ocr-crop-toolbar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
 .ocr-crop-toolbar .button { min-height: 40px; }
 

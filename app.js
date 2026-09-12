@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260911.5';
+const APP_BUILD = '20260911.6';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -89,6 +89,50 @@ function askConfirm(message, { confirmText = 'Aceptar', cancelText = 'Cancelar',
 
 function askAlert(message) {
   return askConfirm(message, { confirmText: 'Entendido', cancelText: null });
+}
+
+// Bloqueador de pantalla "Guardando...". Un doble clic (o un Enter de más)
+// mientras la primera petición todavía está en curso puede registrar la
+// misma factura/gasto dos veces. Se agrega directo a <body> (no dentro de
+// una sección que pueda quedar detrás de otra por su propio z-index) con
+// pointer-events solo activo junto con la clase .active, para no bloquear
+// clics estando oculto.
+let savingBlockerEl = null;
+let savingBlockerDepth = 0;
+
+function ensureSavingBlockerEl() {
+  if (savingBlockerEl && document.body.contains(savingBlockerEl)) return savingBlockerEl;
+  const el = document.createElement('div');
+  el.id = 'savingBlockerOverlay';
+  el.className = 'saving-blocker-overlay';
+  el.innerHTML = '<div class="saving-blocker-box"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i><span class="saving-blocker-text">Guardando…</span></div>';
+  document.body.appendChild(el);
+  savingBlockerEl = el;
+  return el;
+}
+
+function showSavingBlocker(message = 'Guardando…') {
+  savingBlockerDepth += 1;
+  const el = ensureSavingBlockerEl();
+  el.querySelector('.saving-blocker-text').textContent = message;
+  el.classList.add('active');
+}
+
+function hideSavingBlocker() {
+  savingBlockerDepth = Math.max(0, savingBlockerDepth - 1);
+  if (savingBlockerDepth === 0 && savingBlockerEl) savingBlockerEl.classList.remove('active');
+}
+
+// Envuelve una acción que escribe (POST/PATCH/DELETE): bloquea la pantalla
+// ANTES de ejecutarla y la desbloquea siempre al terminar (éxito o error),
+// para nunca dejarla trabada.
+async function withSavingBlocker(action, message) {
+  showSavingBlocker(message);
+  try {
+    return await action();
+  } finally {
+    hideSavingBlocker();
+  }
 }
 
 let currentDraft = null;
@@ -1707,6 +1751,10 @@ function setBusy(busy) {
   elements.fetchButton.disabled = busy || !isValidAccessKey(elements.accessKeyInput.value);
   elements.uploadButton.disabled = busy;
   elements.sampleButton.disabled = busy;
+  // El bloqueador de pantalla ya frena los clics de mouse; esto además
+  // frena un Enter de más en el último paso de "Reconstruir la clave"
+  // (el bloqueador no detiene un submit por teclado).
+  if (elements.kbInsertCode) elements.kbInsertCode.disabled = busy;
 }
 
 function showError(message) {
@@ -3092,10 +3140,19 @@ async function requestPreview(path, body = {}) {
 // escribir nada. Si la clave es válida y el proveedor ya quedó identificado,
 // se considera aprobada por quien la escaneó/reconstruyó y pasa sola a
 // Pendientes (ver aviso en la rama "capture.preview" más abajo).
-async function captureDesktopDocument({ preview = false } = {}) {
+// desktopCaptureBusy: un doble clic o un Enter de más (el bloqueador de
+// pantalla solo detiene clics de mouse, no un submit por teclado) podía
+// disparar dos consultas/guardados en paralelo. Se ignora una llamada nueva
+// mientras ya hay una en curso, EXCEPTO la que esta misma función hace para
+// encadenar el guardado automático tras el aviso (ver más abajo).
+let desktopCaptureBusy = false;
+async function captureDesktopDocument({ preview = false, _chained = false } = {}) {
+  if (desktopCaptureBusy && !_chained) return false;
+  desktopCaptureBusy = true;
   const accessKey = elements.accessKeyInput.value;
   clearError();
   setBusy(true);
+  showSavingBlocker(preview ? 'Consultando el SRI…' : 'Guardando en Pendientes…');
   try {
     const result = await posApiRequest('/api/purchases/v2/documents/capture', {
       method: 'POST',
@@ -3126,8 +3183,14 @@ async function captureDesktopDocument({ preview = false } = {}) {
       // reconstruyó. Antes hacía falta un clic más en "Guardar en pendientes"
       // (ya retirado del PC); ahora pasa sola, con un aviso.
       if (matchedProvider) {
+        // Se oculta el bloqueador mientras se espera el aviso (nada está en
+        // curso en ese momento) para que no le tape el botón "Entendido".
+        hideSavingBlocker();
         await askAlert('Clave válida y proveedor identificado. Esta factura ingresará a Pendientes.');
-        return captureDesktopDocument({ preview: false });
+        showSavingBlocker('Guardando en Pendientes…');
+        // _chained: esta llamada es una continuación intencional de la
+        // misma aprobación, no un segundo intento del usuario.
+        return await captureDesktopDocument({ preview: false, _chained: true });
       }
       elements.saveToPendingButton.hidden = false;
       elements.saveToPendingButton.disabled = false;
@@ -3156,6 +3219,8 @@ async function captureDesktopDocument({ preview = false } = {}) {
     return false;
   } finally {
     setBusy(false);
+    hideSavingBlocker();
+    desktopCaptureBusy = false;
   }
 }
 
