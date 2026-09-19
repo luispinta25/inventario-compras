@@ -18,10 +18,14 @@
   // etc.) un 30% más.
   const UNIDADES_MARKUP = 1.50;
   const PRESENTACION_MARKUP = 1.30;
+  // Debe coincidir con la restriccion inventario_unidad_paquete_check en
+  // ferre_inventario -- si se agrega una opcion aqui sin agregarla tambien
+  // a esa restriccion, el guardado falla con un 500 en cuanto alguien la
+  // elija (paso con estas 12 antes de ampliar la restriccion el 2026-09-18).
   const EMPAQUE_OPTIONS = [
     'CAJA', 'UNIDADES', 'PAQUETES', 'PAR', 'DOCENA', 'MEDIA DOCENA', 'CIENTOS',
     'MILLAR', 'GRUESA', 'FUNDA', 'BLISTER', 'PACK', 'JUEGO', 'KIT', 'SET',
-    'ROLLO', 'METROS', 'PLIEGO', 'BALDE', 'GALONES', 'LITROS',
+    'ROLLOS', 'METROS', 'PLIEGO', 'BALDE', 'GALONES', 'LITROS',
     'LIBRAS', 'KILO', 'GRAMOS', 'ENTERO'
   ];
   const ZONA_OPTIONS = Array.from({ length: 18 }, (_, index) => index + 1);
