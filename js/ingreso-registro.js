@@ -169,7 +169,7 @@
     }
   }
 
-  function openNewProduct({ code = '', description = '', cost = 0 } = {}) {
+  function openNewProduct({ code = '', description = '', cost = 0, excludeCodes = [] } = {}) {
     return new Promise((resolve) => {
       newProduct.resolver = resolve;
       newProduct.empaque = 'UNIDADES';
@@ -188,7 +188,19 @@
       if (!String(code || '').trim()) {
         app().posApiRequest?.('/api/purchases/v2/inventory/next-code', { method: 'GET' })
           .then((response) => {
-            if (!$('npCodigo').value) $('npCodigo').value = response?.data?.codigo || '';
+            // El endpoint solo mira ferre_inventario, asi que si ya se creo
+            // otro producto nuevo en ESTA misma factura (todavia no guardado
+            // en la base) sugiere el mismo codigo otra vez. excludeCodes trae
+            // los codigos ya asignados a otras lineas de esta factura para
+            // saltarlos aqui, igual que hace ingreso-factura.js.
+            let suggested = String(response?.data?.codigo || '').trim();
+            const excluded = new Set((excludeCodes || []).map((c) => String(c).trim()).filter(Boolean));
+            if (excluded.size && /^\d{1,4}$/.test(suggested)) {
+              let next = parseInt(suggested, 10);
+              while (excluded.has(String(next)) && next < 9999) next += 1;
+              suggested = String(Math.min(next, 9999));
+            }
+            if (!$('npCodigo').value) $('npCodigo').value = suggested;
             checkNewProductCodigo();
           })
           .catch(() => {});

@@ -2327,8 +2327,14 @@ function renderItems(items) {
           await window.initIngresoRegistro();
         }
       } catch (_) { return; }
+      // Sin esto, cada línea nueva de la misma factura recibía el mismo
+      // código sugerido: el backend solo sabe lo que ya existe en
+      // ferre_inventario, no lo que se está armando en esta factura todavía
+      // sin guardar. Se excluyen los códigos que otras líneas de esta
+      // factura ya tienen asignados.
+      const excludeCodes = items.map((entry) => entry.nuevo_producto?.codigo).filter(Boolean);
       const created = await window.ingresoRegistro.openNewProduct({
-        code, description: item.description, cost: Number(item.unit_cost) || 0
+        code, description: item.description, cost: Number(item.unit_cost) || 0, excludeCodes
       });
       // Se descarta si el usuario cambió el SKU mientras el modal estaba abierto.
       if (!created || input.value.trim() !== before) return;
