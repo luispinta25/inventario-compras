@@ -100,6 +100,79 @@
     return null;
   }
 
+  // -- Deteccion de longitud (metros) por paquete, para "Añadir unidades" -----
+  // Un rollo suele traer su medida en el propio nombre ("MANGUERA 6M",
+  // "CABLE 8 MTS", "ALAMBRE 10 METROS"): si aparece, la cantidad Y la unidad
+  // del desglose son ambas obvias (6 METROS), sin necesidad de adivinar por
+  // el tipo de paquete. Requiere un digito pegado a la abreviacion para no
+  // confundirse con palabras sueltas que terminan en "m".
+  function detectLengthPerPackage(text) {
+    const value = String(text || '').toLowerCase();
+    const match = value.match(/(\d{1,4}(?:[.,]\d{1,2})?)\s?(?:m|mt|mts|metro|metros)\b/);
+    if (!match) return null;
+    const cantidad = Number(match[1].replace(',', '.'));
+    return Number.isFinite(cantidad) && cantidad > 0 ? cantidad : null;
+  }
+
+  // -- Deteccion de la unidad de empaque desde el nombre/descripcion ----------
+  // Para sugerir la presentacion de un producto NUEVO (ej. "TORNILLO CAJA
+  // X100" -> CAJA, "ACEITE 1 GALON" -> GALONES). Cubre las mismas 25
+  // unidades de EMPAQUE_OPTIONS; el usuario siempre puede cambiar el botón
+  // seleccionado antes de guardar. Orden importa: "media docena" se prueba
+  // antes que "docena" sola para no cortarla a la mitad.
+  const UNIT_TEXT_PATTERNS = [
+    [/\bmedia\s*docenas?\b/, 'MEDIA DOCENA'],
+    [/\d+(?:[.,]\d+)?\s?(?:m|mt|mts|metro|metros)\b/, 'METROS'],
+    [/\brollos?\b/, 'ROLLOS'],
+    [/\bgalones?\b|\bgal\b/, 'GALONES'],
+    [/\blitros?\b|\blts?\b/, 'LITROS'],
+    [/\bkilos?\b|\bkgs?\b/, 'KILO'],
+    [/\blibras?\b|\blbs?\b/, 'LIBRAS'],
+    [/\bgramos?\b|\bgrs?\b/, 'GRAMOS'],
+    [/\bpares?\b/, 'PAR'],
+    [/\bcajas?\b/, 'CAJA'],
+    [/\bfundas?\b/, 'FUNDA'],
+    [/\bpaquetes?\b|\bpaq\b/, 'PAQUETES'],
+    [/\bcientos?\b/, 'CIENTOS'],
+    [/\bdocenas?\b/, 'DOCENA'],
+    [/\bmillares?\b/, 'MILLAR'],
+    [/\bgruesas?\b/, 'GRUESA'],
+    [/\bbl[ií]sters?\b/, 'BLISTER'],
+    [/\bpacks?\b/, 'PACK'],
+    [/\bjuegos?\b/, 'JUEGO'],
+    [/\bkits?\b/, 'KIT'],
+    [/\bsets?\b/, 'SET'],
+    [/\bpliegos?\b/, 'PLIEGO'],
+    [/\bbaldes?\b/, 'BALDE']
+  ];
+  function detectUnidadPaqueteFromText(text) {
+    const value = String(text || '').toLowerCase();
+    for (const [re, unidad] of UNIT_TEXT_PATTERNS) {
+      if (re.test(value)) return unidad;
+    }
+    return null;
+  }
+
+  // -- Unidad sugerida al desglosar un paquete en unidades sueltas ------------
+  // ROLLOS -> METROS (un rollo se mide y vende por metro). Los envases que ya
+  // vienen agrupados (PAQUETES/CAJA/FUNDA/CIENTOS/ENTERO/PAR) se sueltan en
+  // UNIDADES, como siempre. Todo lo demas (KILO, LIBRAS, GALONES, LITROS...)
+  // se queda igual: desglosar un producto por kilo sigue siendo kilos, no se
+  // reinventa una conversion sin pedirla.
+  const BREAKDOWN_UNIT_SUGGESTIONS = {
+    ROLLOS: 'METROS',
+    PAQUETES: 'UNIDADES',
+    CAJA: 'UNIDADES',
+    FUNDA: 'UNIDADES',
+    CIENTOS: 'UNIDADES',
+    ENTERO: 'UNIDADES',
+    PAR: 'UNIDADES'
+  };
+  function suggestBreakdownUnit(parentUnidad) {
+    const key = String(parentUnidad || '').toUpperCase();
+    return BREAKDOWN_UNIT_SUGGESTIONS[key] || key || 'UNIDADES';
+  }
+
   // -- Botoneras -------------------------------------------------------------
   function buildButtonGrid(container, values, getLabel, onPick) {
     container.replaceChildren();
@@ -172,7 +245,11 @@
   function openNewProduct({ code = '', description = '', cost = 0, excludeCodes = [] } = {}) {
     return new Promise((resolve) => {
       newProduct.resolver = resolve;
-      newProduct.empaque = 'UNIDADES';
+      // Sugiere la presentacion a partir del nombre/descripcion (ej. "TUBO
+      // PVC FUNDA X10" -> FUNDA, "MANGUERA 6M" -> METROS). El usuario puede
+      // cambiar el boton seleccionado antes de guardar.
+      const empaqueSugerido = detectUnidadPaqueteFromText(description) || 'UNIDADES';
+      newProduct.empaque = empaqueSugerido;
       newProduct.zona = null;
       newProduct.existe = false;
       $('npCodigo').value = String(code || '').trim();
@@ -182,7 +259,7 @@
       $('npError').textContent = '';
       $('npCodigoEstado').textContent = '';
       $('npCodigoEstado').className = 'reg-hint reg-un-estado';
-      newProduct.grids.empaque.select('UNIDADES');
+      newProduct.grids.empaque.select(empaqueSugerido);
       newProduct.grids.zona.select('');
       $('newProductModal').hidden = false;
       if (!String(code || '').trim()) {
@@ -272,7 +349,7 @@
   }
 
   // ======================= Modal: desglose de unidades ===================
-  const unidades = { grid: null, resolver: null, zona: null, codeToken: 0, existe: false, defaultNombre: '' };
+  const unidades = { grid: null, unidadGrid: null, resolver: null, zona: null, unidad: 'UNIDADES', codeToken: 0, existe: false, defaultNombre: '' };
 
   const stripLeadingZeros = (value) => (/^0\d/.test(value) ? value.replace(/^0+(?=\d)/, '') : value);
 
@@ -329,10 +406,20 @@
     return new Promise((resolve) => {
       unidades.resolver = resolve;
       const existing = current.desglose || null;
+      const texto = current.descripcion_xml || current.nombre;
+      // Un rollo con la medida en el nombre ("MANGUERA 6M") da la cantidad Y
+      // la unidad de una: METROS. Si no, se sugiere segun el tipo de paquete
+      // del producto (ROLLOS -> METROS, PAQUETES/CAJA/... -> UNIDADES, el
+      // resto se queda igual) -- el usuario puede cambiar ambas cosas antes
+      // de guardar.
+      const longitudDetectada = detectLengthPerPackage(texto);
       const upp = existing?.unidades_por_paquete
-        || detectUnitsPerPackage(current.descripcion_xml || current.nombre) || 12;
+        || longitudDetectada || detectUnitsPerPackage(texto) || 12;
+      const unidadSugerida = (existing?.unidad_paquete
+        || (longitudDetectada ? 'METROS' : suggestBreakdownUnit(current.unidad_actual))).toUpperCase();
+      unidades.unidad = unidadSugerida;
       const baseCodigo = existing?.codigo || `${current.codigo || ''}001`;
-      const baseNombre = existing?.nombre || `${current.nombre || ''} -UNIDADES`.trim();
+      const baseNombre = existing?.nombre || `${current.nombre || ''} -${unidadSugerida}`.trim();
       unidades.zona = existing?.zona || (current.zona != null && current.zona !== '' ? Number(current.zona) : 1);
 
       $('unTitulo').textContent = `${current.codigo || ''} · ${current.nombre || ''}`;
@@ -354,11 +441,25 @@
       $('unQuitar').hidden = !existing;
       unidades._current = current;
       unidades.grid.select(unidades.zona);
+      unidades.unidadGrid.select(unidades.unidad);
       syncUnidades();
       checkUnidadesCodigo();
       $('unidadesModal').hidden = false;
       window.setTimeout(() => $('unPaquetes').focus(), 60);
     });
+  }
+
+  // Si el usuario cambia la unidad de desglose a mano y todavia no tocó el
+  // nombre sugerido, se lo actualiza para que siga diciendo "-METROS" /
+  // "-LITROS" / etc. en vez de quedarse con la unidad vieja.
+  function onUnidadesUnidadChange() {
+    const nombreInput = $('unNombre');
+    if (nombreInput.value.trim().toUpperCase() === unidades.defaultNombre) {
+      const current = unidades._current || {};
+      const nuevo = `${current.nombre || ''} -${unidades.unidad}`.trim().toUpperCase();
+      nombreInput.value = nuevo;
+      unidades.defaultNombre = nuevo;
+    }
   }
 
   function syncUnidades() {
@@ -373,7 +474,7 @@
     const costUnit = upp > 0 ? round(cost / upp, 4) : 0;
     const sugVenta = upp > 0 ? round((ventaPaquete / upp) * UNIDADES_MARKUP, 2) : 0;
     $('unResumen').textContent = upp > 0
-      ? `${paquetes} paq. → ${round(paquetes * upp, 3)} unidades · costo unitario ${money(costUnit)}`
+      ? `${paquetes} paq. → ${round(paquetes * upp, 3)} ${unidades.unidad.toLowerCase()} · costo unitario ${money(costUnit)}`
       : 'Indica cuántas unidades vienen por paquete.';
     const input = $('unPrecioVenta');
     if (!input.dataset.touched && sugVenta > 0) input.value = sugVenta.toFixed(2);
@@ -410,6 +511,7 @@
         codigo,
         nombre,
         zona: unidades.zona,
+        unidad_paquete: unidades.unidad,
         precio_venta_unitario: round(venta, 2)
       }
     });
@@ -572,6 +674,7 @@
         costo: unitNetCost(item),
         precio_venta: equivalentBoxSalePrice(item),
         zona: item.line_overrides?.zona ?? nuevo?.zona ?? linked?.zona ?? 1,
+        unidad_actual: (item.line_overrides?.unidad_paquete || nuevo?.unidad_paquete || linked?.unidad_paquete || 'UNIDADES').toUpperCase(),
         cantidad_recibida: recibida,
         desglose: item.desglose || null
       };
@@ -687,6 +790,7 @@
           codigo: item.desglose.codigo || null,
           nombre: item.desglose.nombre || null,
           zona: item.desglose.zona || null,
+          unidad_paquete: item.desglose.unidad_paquete || 'UNIDADES',
           precio_venta_unitario: round(Number(item.desglose.precio_venta_unitario) || 0, 2)
         };
       }
@@ -902,6 +1006,7 @@
     });
 
     unidades.grid = buildButtonGrid($('unZona'), ZONA_OPTIONS, (v) => String(v), (v) => { unidades.zona = v; });
+    unidades.unidadGrid = buildButtonGrid($('unUnidad'), EMPAQUE_OPTIONS, (v) => v, (v) => { unidades.unidad = v; onUnidadesUnidadChange(); });
     ['unPaquetes', 'unUpp'].forEach((id) => $(id).addEventListener('input', syncUnidades));
     let unCodigoTimer;
     $('unCodigo').addEventListener('input', () => {
