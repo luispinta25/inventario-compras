@@ -784,6 +784,16 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .invoices-summary { margin: 0 0 12px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .invoices-empty { grid-column: 1 / -1; margin: 0; padding: 30px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; }
 
+.provider-notices-panel { margin: 0 0 16px; padding: 14px 16px; border: 1px solid #f4d789; border-left: 4px solid var(--accent); border-radius: 8px; background: #fffaf0; }
+.provider-notices-panel h2 { margin: 0 0 10px; font-size: 13px; font-weight: 850; text-transform: uppercase; letter-spacing: .03em; color: #805500; }
+.provider-notice-empty { margin: 0; color: var(--muted); font-size: 13px; }
+.provider-notice-group { margin: 0 0 10px; }
+.provider-notice-group:last-child { margin-bottom: 0; }
+.provider-notice-group h3 { margin: 0 0 6px; font-size: 12px; font-weight: 800; color: #41474e; }
+.provider-notice-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 13px; }
+.provider-notice-item:last-child { margin-bottom: 0; }
+.provider-notice-item .button { min-height: 28px; padding: 0 10px; font-size: 12px; }
+
 .invoices-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
 .invoice-card { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; text-align: left; border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; background: var(--surface); cursor: pointer; font: inherit; }
 .invoice-card:hover { border-color: var(--accent-dark); box-shadow: 0 4px 14px rgba(16, 20, 28, .1); }
