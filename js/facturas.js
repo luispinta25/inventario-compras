@@ -137,21 +137,25 @@
     }
   }
 
-  function renderProviderNotices(novedades, notas, eventualidades) {
-    const content = el('providerNoticesContent');
+  // Pinta novedades/notas/eventualidades en cualquier contenedor. Se usa en
+  // el panel de la vista de Facturas (con boton "Resolver" en las notas) y en
+  // la previsualizacion del modal "Notificar visita" (solo lectura).
+  function renderNoticesList(content, novedades, notas, eventualidades, { resolvable = false } = {}) {
+    const novedadesList = novedades || [];
+    const notasList = notas || [];
     const eventualidadesList = eventualidades || [];
-    if (!novedades.length && !notas.length && !eventualidadesList.length) {
+    if (!novedadesList.length && !notasList.length && !eventualidadesList.length) {
       content.innerHTML = '<p class="provider-notice-empty">Todo en orden: sin novedades ni notas pendientes.</p>';
       return;
     }
     content.replaceChildren();
-    if (novedades.length) {
+    if (novedadesList.length) {
       const group = document.createElement('div');
       group.className = 'provider-notice-group';
       const heading = document.createElement('h3');
-      heading.textContent = `Novedades abiertas (${novedades.length})`;
+      heading.textContent = `Novedades abiertas (${novedadesList.length})`;
       group.appendChild(heading);
-      novedades.forEach((novedad) => {
+      novedadesList.forEach((novedad) => {
         const item = document.createElement('div');
         item.className = 'provider-notice-item';
         const motivo = String(novedad.motivo || '').trim();
@@ -160,23 +164,26 @@
       });
       content.appendChild(group);
     }
-    if (notas.length) {
+    if (notasList.length) {
       const group = document.createElement('div');
       group.className = 'provider-notice-group';
       const heading = document.createElement('h3');
-      heading.textContent = `Notas pendientes (${notas.length})`;
+      heading.textContent = `Notas pendientes (${notasList.length})`;
       group.appendChild(heading);
-      notas.forEach((nota) => {
+      notasList.forEach((nota) => {
         const item = document.createElement('div');
         item.className = 'provider-notice-item';
         const span = document.createElement('span');
         span.textContent = nota.nota;
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'button button-secondary';
-        button.textContent = 'Resolver';
-        button.addEventListener('click', () => resolveProviderNote(nota.id));
-        item.append(span, button);
+        item.appendChild(span);
+        if (resolvable) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'button button-secondary';
+          button.textContent = 'Resolver';
+          button.addEventListener('click', () => resolveProviderNote(nota.id));
+          item.appendChild(button);
+        }
         group.appendChild(item);
       });
       content.appendChild(group);
@@ -197,6 +204,10 @@
       });
       content.appendChild(group);
     }
+  }
+
+  function renderProviderNotices(novedades, notas, eventualidades) {
+    renderNoticesList(el('providerNoticesContent'), novedades, notas, eventualidades, { resolvable: true });
   }
 
   async function resolveProviderNote(id) {
@@ -1455,7 +1466,7 @@
 
   // Diseño "ficha de taller": marco fino, RECORDATORIO en bloque y una franja
   // de color al pie con los días de atraso.
-  function buildRecordatorioImage(providerName, items) {
+  function buildRecordatorioImage(providerName, items, hasPendingNotices) {
     const S = 1080;
     const canvas = document.createElement('canvas');
     canvas.width = S;
@@ -1511,6 +1522,25 @@
     ctx.font = `500 30px ${SANS}`;
     ctx.fillText('Visita registrada · ' + fecha, S / 2, 704);
 
+    // Aviso sin detalle: solo que hay algo pendiente (novedades, notas o
+    // eventualidades). El detalle va en un mensaje de WhatsApp aparte.
+    if (hasPendingNotices) {
+      const boxX = 140;
+      const boxY = 762;
+      const boxW = S - 280;
+      const boxH = 76;
+      ctx.fillStyle = '#b3261e';
+      ctx.fillRect(boxX, boxY, boxW, boxH);
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(boxX, boxY, boxW, boxH);
+      ctx.fillStyle = '#ffffff';
+      setCanvasLS(ctx, 2);
+      ctx.font = `700 30px ${SANS}`;
+      ctx.fillText('ALERTA: NOTAS PENDIENTES', S / 2, boxY + boxH / 2 + 1);
+      setCanvasLS(ctx, 0);
+    }
+
     // Franja inferior de color.
     ctx.fillStyle = sev;
     ctx.fillRect(0, 900, S, 180);
@@ -1563,7 +1593,7 @@
     return `vencida hace ${Math.abs(dias)} días`;
   }
 
-  function buildVisitMessage(providerName, items, motivo, novedades, notas, eventualidades) {
+  function buildVisitMessage(providerName, items, motivo) {
     const pendientes = (items || []).filter((invoice) => Number(invoice.saldo_pendiente) > 0);
     const total = pendientes.reduce((sum, invoice) => sum + (Number(invoice.saldo_pendiente) || 0), 0);
 
@@ -1592,46 +1622,46 @@
       });
     }
 
-    // Estado cualitativo: novedades abiertas (problemas de recepción en
-    // alguna factura) y notas pendientes del proveedor. Independiente del
-    // saldo -- una factura puede estar al día y aun así tener algo pendiente
-    // que avisarle al proveedor cuando venga.
-    const novedadesList = novedades || [];
-    const notasList = notas || [];
-    const eventualidadesList = eventualidades || [];
-    lines.push('', '*Estado del proveedor*');
-    if (!novedadesList.length && !notasList.length && !eventualidadesList.length) {
-      lines.push('Todo en orden (sin novedades ni notas pendientes).');
-    } else {
-      if (novedadesList.length) {
-        lines.push(`⚠️ ${novedadesList.length} ${novedadesList.length === 1 ? 'novedad abierta' : 'novedades abiertas'}:`);
-        novedadesList.forEach((novedad) => {
-          const motivoNovedad = String(novedad.motivo || '').trim();
-          lines.push(`- Factura ${shortInvoiceNumber(novedad.numero_factura)}${motivoNovedad ? `: ${motivoNovedad}` : ''}`);
-        });
-      }
-      if (notasList.length) {
-        if (novedadesList.length) lines.push('');
-        lines.push(`📝 ${notasList.length} ${notasList.length === 1 ? 'nota pendiente' : 'notas pendientes'}:`);
-        notasList.forEach((nota) => lines.push(`- ${String(nota.nota || '').trim()}`));
-      }
-      if (eventualidadesList.length) {
-        if (novedadesList.length || notasList.length) lines.push('');
-        lines.push(`🔔 ${eventualidadesList.length} ${eventualidadesList.length === 1 ? 'eventualidad' : 'eventualidades'}:`);
-        eventualidadesList.forEach((eventualidad) => lines.push(`- ${String(eventualidad.descripcion || '').trim()}`));
-      }
-    }
-
     const motivoText = String(motivo || '').trim();
     if (motivoText) lines.push('', `Motivo: ${motivoText}`);
     return lines.join('\n');
   }
 
-  // Carga las facturas pendientes del proveedor elegido (no se previsualiza:
-  // el mensaje y la imagen se arman al enviar).
+  // Mensaje aparte (solo texto, enviado después de la imagen) con el detalle
+  // de novedades abiertas, notas pendientes y eventualidades ligadas al
+  // proveedor. Se envía únicamente si hay algo pendiente.
+  function buildProviderNoticesMessage(providerName, novedades, notas, eventualidades) {
+    const novedadesList = novedades || [];
+    const notasList = notas || [];
+    const eventualidadesList = eventualidades || [];
+    if (!novedadesList.length && !notasList.length && !eventualidadesList.length) return null;
+
+    const lines = ['*NOVEDADES Y NOTAS PENDIENTES*', '', `Proveedor: *${providerName}*`];
+    if (novedadesList.length) {
+      lines.push('', `⚠️ ${novedadesList.length} ${novedadesList.length === 1 ? 'novedad abierta' : 'novedades abiertas'}:`);
+      novedadesList.forEach((novedad) => {
+        const motivoNovedad = String(novedad.motivo || '').trim();
+        lines.push(`- Factura ${shortInvoiceNumber(novedad.numero_factura)}${motivoNovedad ? `: ${motivoNovedad}` : ''}`);
+      });
+    }
+    if (notasList.length) {
+      lines.push('', `📝 ${notasList.length} ${notasList.length === 1 ? 'nota pendiente' : 'notas pendientes'}:`);
+      notasList.forEach((nota) => lines.push(`- ${String(nota.nota || '').trim()}`));
+    }
+    if (eventualidadesList.length) {
+      lines.push('', `🔔 ${eventualidadesList.length} ${eventualidadesList.length === 1 ? 'eventualidad' : 'eventualidades'}:`);
+      eventualidadesList.forEach((eventualidad) => lines.push(`- ${String(eventualidad.descripcion || '').trim()}`));
+    }
+    return lines.join('\n');
+  }
+
+  // Carga las facturas pendientes del proveedor elegido y muestra de una vez
+  // sus novedades/notas/eventualidades (el mensaje y la imagen se arman al
+  // enviar, pero el detalle de lo pendiente se previsualiza aquí).
   async function loadVisitProvider() {
     const providerId = el('visitProvider').value;
     el('visitError').hidden = true;
+    el('visitNoticesPanel').hidden = true;
     if (!providerId) {
       state.visitItems = null;
       state.visitNovedades = null;
@@ -1642,6 +1672,8 @@
     }
     const token = ++state.visitToken;
     el('visitSend').disabled = true;
+    el('visitNoticesPanel').hidden = false;
+    el('visitNoticesContent').innerHTML = '<p class="provider-notice-empty">Cargando…</p>';
     try {
       const invoicesParams = new URLSearchParams({ estado: 'pendientes', proveedor_id: providerId });
       const [invoicesResponse, novedadesResponse, notasResponse, eventualidadesResponse] = await Promise.all([
@@ -1655,6 +1687,7 @@
       state.visitNovedades = Array.isArray(novedadesResponse?.data) ? novedadesResponse.data : [];
       state.visitNotas = Array.isArray(notasResponse?.data) ? notasResponse.data : [];
       state.visitEventualidades = Array.isArray(eventualidadesResponse?.data) ? eventualidadesResponse.data : [];
+      renderNoticesList(el('visitNoticesContent'), state.visitNovedades, state.visitNotas, state.visitEventualidades);
       el('visitSend').disabled = false;
     } catch (error) {
       if (token !== state.visitToken) return;
@@ -1662,6 +1695,7 @@
       state.visitNovedades = null;
       state.visitNotas = null;
       state.visitEventualidades = null;
+      el('visitNoticesPanel').hidden = true;
       el('visitError').textContent = error?.message || 'No fue posible cargar las facturas del proveedor.';
       el('visitError').hidden = false;
     }
@@ -1672,6 +1706,7 @@
     el('visitProvider').value = '';
     el('visitMotivo').value = '';
     el('visitError').hidden = true;
+    el('visitNoticesPanel').hidden = true;
     state.visitItems = null;
     state.visitNovedades = null;
     state.visitNotas = null;
@@ -1689,7 +1724,8 @@
     const providerName = el('visitProvider').selectedOptions[0]?.textContent || '';
     if (!providerName || !Array.isArray(state.visitItems)) return;
     const items = state.visitItems;
-    const message = buildVisitMessage(providerName, items, el('visitMotivo').value, state.visitNovedades, state.visitNotas, state.visitEventualidades);
+    const message = buildVisitMessage(providerName, items, el('visitMotivo').value);
+    const noticesMessage = buildProviderNoticesMessage(providerName, state.visitNovedades, state.visitNotas, state.visitEventualidades);
 
     const confirmed = await window.app.askConfirm(
       `Enviar al grupo de WhatsApp el aviso de visita de ${providerName}?`,
@@ -1704,8 +1740,10 @@
     try {
       let confirmedByGroup = false;
       try {
-        // El recordatorio va como imagen con el texto de leyenda.
-        const dataUrl = buildRecordatorioImage(providerName, items);
+        // El recordatorio va como imagen con el texto de leyenda (solo
+        // facturas). Si hay novedades/notas/eventualidades, la imagen trae
+        // una alerta sin detalle -- el detalle va en un mensaje aparte.
+        const dataUrl = buildRecordatorioImage(providerName, items, Boolean(noticesMessage));
         const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
         const response = await window.app.posApiRequest(WHATSAPP_MEDIA_API, {
           method: 'POST',
@@ -1732,6 +1770,20 @@
         confirmedByGroup = Boolean(data?.key?.id);
       }
       if (!confirmedByGroup) throw new Error('El grupo no confirmó la recepción del mensaje.');
+
+      // Mensaje aparte con el detalle de lo pendiente. No bloqueante: el
+      // aviso de visita ya se confirmó aunque este segundo mensaje falle.
+      if (noticesMessage) {
+        try {
+          await window.app.posApiRequest(WHATSAPP_API, {
+            method: 'POST',
+            body: JSON.stringify({ text: noticesMessage, delay: 1000, linkPreview: false })
+          });
+        } catch (noticesError) {
+          console.error('No se pudo enviar el mensaje de novedades/notas pendientes:', noticesError);
+        }
+      }
+
       closeVisitModal();
       await window.app.askAlert(`Aviso de visita de ${providerName} enviado al grupo.`);
     } catch (error) {
