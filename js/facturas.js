@@ -120,14 +120,16 @@
     content.innerHTML = '<p class="provider-notice-empty">Cargando…</p>';
     const token = ++state.noticesToken;
     try {
-      const [novedadesResponse, notasResponse] = await Promise.all([
+      const [novedadesResponse, notasResponse, eventualidadesResponse] = await Promise.all([
         window.app.posApiRequest(`/api/purchases/v2/providers/${providerId}/novedades-abiertas`, { method: 'GET' }),
-        window.app.posApiRequest(`/api/provider-notes?${new URLSearchParams({ proveedor_id: providerId, estado: 'Pendiente' })}`, { method: 'GET' })
+        window.app.posApiRequest(`/api/provider-notes?${new URLSearchParams({ proveedor_id: providerId, estado: 'Pendiente' })}`, { method: 'GET' }),
+        window.app.posApiRequest(`/api/eventualidades?${new URLSearchParams({ proveedor_id: providerId })}`, { method: 'GET' })
       ]);
       if (token !== state.noticesToken) return;
       renderProviderNotices(
         Array.isArray(novedadesResponse?.data) ? novedadesResponse.data : [],
-        Array.isArray(notasResponse?.data) ? notasResponse.data : []
+        Array.isArray(notasResponse?.data) ? notasResponse.data : [],
+        Array.isArray(eventualidadesResponse?.data) ? eventualidadesResponse.data : []
       );
     } catch (error) {
       if (token !== state.noticesToken) return;
@@ -135,9 +137,10 @@
     }
   }
 
-  function renderProviderNotices(novedades, notas) {
+  function renderProviderNotices(novedades, notas, eventualidades) {
     const content = el('providerNoticesContent');
-    if (!novedades.length && !notas.length) {
+    const eventualidadesList = eventualidades || [];
+    if (!novedades.length && !notas.length && !eventualidadesList.length) {
       content.innerHTML = '<p class="provider-notice-empty">Todo en orden: sin novedades ni notas pendientes.</p>';
       return;
     }
@@ -174,6 +177,22 @@
         button.textContent = 'Resolver';
         button.addEventListener('click', () => resolveProviderNote(nota.id));
         item.append(span, button);
+        group.appendChild(item);
+      });
+      content.appendChild(group);
+    }
+    if (eventualidadesList.length) {
+      const group = document.createElement('div');
+      group.className = 'provider-notice-group';
+      const heading = document.createElement('h3');
+      heading.textContent = `Eventualidades (${eventualidadesList.length})`;
+      group.appendChild(heading);
+      eventualidadesList.forEach((eventualidad) => {
+        const item = document.createElement('div');
+        item.className = 'provider-notice-item';
+        const span = document.createElement('span');
+        span.textContent = eventualidad.descripcion;
+        item.appendChild(span);
         group.appendChild(item);
       });
       content.appendChild(group);
@@ -1544,7 +1563,7 @@
     return `vencida hace ${Math.abs(dias)} días`;
   }
 
-  function buildVisitMessage(providerName, items, motivo, novedades, notas) {
+  function buildVisitMessage(providerName, items, motivo, novedades, notas, eventualidades) {
     const pendientes = (items || []).filter((invoice) => Number(invoice.saldo_pendiente) > 0);
     const total = pendientes.reduce((sum, invoice) => sum + (Number(invoice.saldo_pendiente) || 0), 0);
 
@@ -1579,8 +1598,9 @@
     // que avisarle al proveedor cuando venga.
     const novedadesList = novedades || [];
     const notasList = notas || [];
+    const eventualidadesList = eventualidades || [];
     lines.push('', '*Estado del proveedor*');
-    if (!novedadesList.length && !notasList.length) {
+    if (!novedadesList.length && !notasList.length && !eventualidadesList.length) {
       lines.push('Todo en orden (sin novedades ni notas pendientes).');
     } else {
       if (novedadesList.length) {
@@ -1594,6 +1614,11 @@
         if (novedadesList.length) lines.push('');
         lines.push(`📝 ${notasList.length} ${notasList.length === 1 ? 'nota pendiente' : 'notas pendientes'}:`);
         notasList.forEach((nota) => lines.push(`- ${String(nota.nota || '').trim()}`));
+      }
+      if (eventualidadesList.length) {
+        if (novedadesList.length || notasList.length) lines.push('');
+        lines.push(`🔔 ${eventualidadesList.length} ${eventualidadesList.length === 1 ? 'eventualidad' : 'eventualidades'}:`);
+        eventualidadesList.forEach((eventualidad) => lines.push(`- ${String(eventualidad.descripcion || '').trim()}`));
       }
     }
 
@@ -1611,6 +1636,7 @@
       state.visitItems = null;
       state.visitNovedades = null;
       state.visitNotas = null;
+      state.visitEventualidades = null;
       el('visitSend').disabled = true;
       return;
     }
@@ -1618,21 +1644,24 @@
     el('visitSend').disabled = true;
     try {
       const invoicesParams = new URLSearchParams({ estado: 'pendientes', proveedor_id: providerId });
-      const [invoicesResponse, novedadesResponse, notasResponse] = await Promise.all([
+      const [invoicesResponse, novedadesResponse, notasResponse, eventualidadesResponse] = await Promise.all([
         window.app.posApiRequest(`${API}?${invoicesParams.toString()}`, { method: 'GET' }),
         window.app.posApiRequest(`/api/purchases/v2/providers/${providerId}/novedades-abiertas`, { method: 'GET' }),
-        window.app.posApiRequest(`/api/provider-notes?${new URLSearchParams({ proveedor_id: providerId, estado: 'Pendiente' })}`, { method: 'GET' })
+        window.app.posApiRequest(`/api/provider-notes?${new URLSearchParams({ proveedor_id: providerId, estado: 'Pendiente' })}`, { method: 'GET' }),
+        window.app.posApiRequest(`/api/eventualidades?${new URLSearchParams({ proveedor_id: providerId })}`, { method: 'GET' })
       ]);
       if (token !== state.visitToken) return;
       state.visitItems = Array.isArray(invoicesResponse?.data?.items) ? invoicesResponse.data.items : [];
       state.visitNovedades = Array.isArray(novedadesResponse?.data) ? novedadesResponse.data : [];
       state.visitNotas = Array.isArray(notasResponse?.data) ? notasResponse.data : [];
+      state.visitEventualidades = Array.isArray(eventualidadesResponse?.data) ? eventualidadesResponse.data : [];
       el('visitSend').disabled = false;
     } catch (error) {
       if (token !== state.visitToken) return;
       state.visitItems = null;
       state.visitNovedades = null;
       state.visitNotas = null;
+      state.visitEventualidades = null;
       el('visitError').textContent = error?.message || 'No fue posible cargar las facturas del proveedor.';
       el('visitError').hidden = false;
     }
@@ -1646,6 +1675,7 @@
     state.visitItems = null;
     state.visitNovedades = null;
     state.visitNotas = null;
+    state.visitEventualidades = null;
     el('visitSend').disabled = true;
     el('visitModal').hidden = false;
   }
@@ -1659,7 +1689,7 @@
     const providerName = el('visitProvider').selectedOptions[0]?.textContent || '';
     if (!providerName || !Array.isArray(state.visitItems)) return;
     const items = state.visitItems;
-    const message = buildVisitMessage(providerName, items, el('visitMotivo').value, state.visitNovedades, state.visitNotas);
+    const message = buildVisitMessage(providerName, items, el('visitMotivo').value, state.visitNovedades, state.visitNotas, state.visitEventualidades);
 
     const confirmed = await window.app.askConfirm(
       `Enviar al grupo de WhatsApp el aviso de visita de ${providerName}?`,
