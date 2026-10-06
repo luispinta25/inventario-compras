@@ -1063,3 +1063,32 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .invoice-novedad-form select, .invoice-novedad-form textarea { padding: 7px 9px; border: 1px solid #c6cdd4; border-radius: 6px; background: #fff; font: inherit; font-size: 13px; color: #23282e; }
 .invoice-novedad-nc-hint { font-size: 11px; font-weight: 500; color: var(--muted); }
 .invoice-novedad-actions { display: flex; justify-content: flex-end; }
+
+/* Pedidos: necesidades, alternativas y seguimiento. */
+.orders-shell { max-width: 1500px; margin: 0 auto; padding: 24px; }
+.orders-settings, .orders-actions, .orders-provider-list { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: 18px 0; }
+.orders-settings label { display: grid; gap: 6px; }
+.orders-shell input, .orders-shell select, .orders-shell textarea, .order-invoice-dialog input, .order-invoice-dialog select { padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #17212f; max-width: 100%; }
+.orders-settings input { width: 120px; }
+.orders-home { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin: 20px 0; }
+.order-count { display: grid; gap: 8px; text-align: left; padding: 22px; border: 1px solid #d4dde7; border-radius: 14px; background: #fff; cursor: pointer; }
+.order-count strong { font-size: 32px; color: #b3541e; }
+.orders-search { display: flex; gap: 12px; align-items: center; margin: 20px 0; }
+.orders-workspace { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); gap: 24px; }
+.order-product, #ordersDetail { padding: 18px; margin-bottom: 14px; border: 1px solid #d4dde7; border-radius: 12px; background: #fff; }
+#ordersDetail:empty { display: none; }
+.order-product select, .order-product textarea { display: block; width: 100%; margin: 10px 0; }
+.order-product h4 { margin: 0 0 10px; }
+.order-product input { margin: 8px; width: 130px; }
+.order-product p, .order-match-row p { line-height: 1.6; }
+.order-warning { color: #935918; }
+.order-line-help { color: #526177; font-size: 13px; }
+.order-history-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid #edf0f3; }
+.orders-table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+.orders-table th, .orders-table td { text-align: left; padding: 10px; border-bottom: 1px solid #e2e8f0; }
+.order-invoice-dialog { border: 0; border-radius: 16px; width: min(950px, 94vw); max-height: 88vh; padding: 24px; box-shadow: 0 20px 80px #0005; color: #17212f; }
+.order-invoice-dialog::backdrop { background: #101828aa; }
+.order-invoice-dialog select { width: 100%; }
+.order-match-row { padding: 12px 0; border-bottom: 1px solid #e2e8f0; }
+.order-invoice-dialog button { margin: 16px 12px 0 0; }
+@media(max-width:900px) { .orders-workspace { grid-template-columns: 1fr; } .orders-home { grid-template-columns: repeat(2,1fr); } .orders-shell { padding: 12px; } .orders-table { font-size: 12px; } }

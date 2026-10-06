@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = '0.2.0';
-const APP_BUILD = '20260930.3';
+const APP_BUILD = '20261005.1';
 
 const SUPABASE_URL = 'https://lpsupabase.luispintasolutions.com';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.LJEZ3yyGRxLBmCKM9z3EW-Yla1SszwbmvQMngMe3IWA';
@@ -532,6 +532,7 @@ function moduleFromHash() {
     '#compra-express': 'compra-express',
     '#dashboard': 'provider-dashboard',
     '#comparador': 'comparator',
+    '#pedidos': 'purchase-orders',
     '#producto-proveedores': 'product-providers',
     '#pendientes': 'pending-documents',
     '#cargar-factura': 'mobile-capture'
@@ -776,6 +777,25 @@ function loadExpressModule() {
   return expressModuleRequest;
 }
 
+let ordersModuleRequest = null;
+function loadOrdersModule() {
+  if (typeof window.initPedidos === 'function') return Promise.resolve();
+  if (ordersModuleRequest) return ordersModuleRequest;
+  ordersModuleRequest = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `js/pedidos.js?v=${APP_BUILD}`;
+    script.onload = resolve;
+    script.onerror = () => { ordersModuleRequest = null; script.remove(); reject(new Error('No se pudo cargar Pedidos.')); };
+    document.body.appendChild(script);
+  });
+  return ordersModuleRequest;
+}
+window.loadOrdersModule = loadOrdersModule;
+window.openInvoiceFromOrder = async (invoiceId) => {
+  await switchAppModule('provider-invoices');
+  history.replaceState(null, '', '#facturas');
+  await window.openPurchaseInvoiceDetail(invoiceId);
+};
 let registerModuleRequest = null;
 
 function loadRegisterModule() {
@@ -877,6 +897,9 @@ async function switchAppModule(moduleName) {
   } else if (moduleName === 'provider-invoices') {
     await loadInvoicesModule();
     await window.initFacturas();
+  } else if (moduleName === 'purchase-orders') {
+    await loadOrdersModule();
+    await window.initPedidos();
   } else if (moduleName === 'compra-express') {
     await loadExpressModule();
     await window.initCompraExpress();
@@ -1405,6 +1428,19 @@ async function previewMobileDocument() {
   }
 }
 
+async function selectCaptureOrder(draft) {
+  if (!draft || draft.pedido_seleccionado) return true;
+  const providerId = draft.provider?.match?.provider_id;
+  if (!providerId) throw new Error('Identifica el proveedor antes de seleccionar el pedido.');
+  await loadOrdersModule();
+  const choice = await window.selectInvoicePurchaseOrder({ proveedor_id: providerId, items: [] });
+  if (!choice) return false;
+  draft.pedido_id = choice.pedido_id;
+  draft.pedido_seleccionado = true;
+  saveInvoiceDraftNow();
+  return true;
+}
+
 // Paso 2: guarda el XML en la cola de pendientes tras la verificación.
 async function confirmMobileDocument() {
   const accessKey = elements.mobileAccessKeyInput.value;
@@ -1413,6 +1449,7 @@ async function confirmMobileDocument() {
   elements.mobileSaveButton.disabled = true;
   setMobileStatus('Guardando en Pendientes…', 'loading');
   try {
+    if (!(await selectCaptureOrder(currentDraft))) { elements.mobileSaveButton.disabled = false; setMobileStatus('Selecciona el pedido antes de guardar.'); return; }
     const result = await posApiRequest('/api/purchases/v2/documents/capture', {
       method: 'POST',
       body: JSON.stringify({ access_key: accessKey, datos_extraidos: currentDraft || undefined })
@@ -3192,7 +3229,8 @@ async function captureDesktopDocument({ preview = false, _chained = false } = {}
         // Se oculta el bloqueador mientras se espera el aviso (nada está en
         // curso en ese momento) para que no le tape el botón "Entendido".
         hideSavingBlocker();
-        await askAlert('Clave válida y proveedor identificado. Esta factura ingresará a Pendientes.');
+        currentDraft.provider.match = { ...(currentDraft.provider.match || {}), provider_id: matchedProvider.id };
+        if (!(await selectCaptureOrder(currentDraft))) return false;
         showSavingBlocker('Guardando en Pendientes…');
         // _chained: esta llamada es una continuación intencional de la
         // misma aprobación, no un segundo intento del usuario.

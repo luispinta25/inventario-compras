@@ -849,6 +849,17 @@
       items: buildItemsPayload(draft)
     };
 
+    await window.loadOrdersModule();
+    const association = await window.selectInvoicePurchaseOrder({ ...payload, pedido_id: draft.pedido_id, pedido_seleccionado: draft.pedido_seleccionado });
+    if (!association) return;
+    payload.pedido_id = association.pedido_id;
+    if (association.pedido_id) {
+      association.mapping.forEach(({ index, linea_id, factor }) => {
+        payload.items[index].pedido_linea_id = linea_id;
+        payload.items[index].pedido_factor_conversion = linea_id ? factor : null;
+      });
+    }
+
     const confirmText = payment.tipo_pago === 'Contado'
       ? `Registrar la factura ${payload.numero_factura} y pagarla de contado (${money(draft.totals?.total)}).`
       : `Registrar la factura ${payload.numero_factura} a crédito (saldo ${money(draft.totals?.total)}).`;

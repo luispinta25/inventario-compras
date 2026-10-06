@@ -1861,6 +1861,8 @@
     el('invNcForm').addEventListener('submit', submitNc);
   }
 
+  window.openPurchaseInvoiceDetail = openInvoice;
+
   window.initFacturas = async function initFacturas() {
     bindOnce();
     await loadInvoices();

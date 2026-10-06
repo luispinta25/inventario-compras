@@ -93,6 +93,9 @@
           <i class="fa-solid fa-bolt" aria-hidden="true"></i>
           <span>Compra<br>express</span>
         </a>
+        <a href="#pedidos" class="module-nav-item" data-app-module="purchase-orders" title="Pedidos a proveedores">
+          <i class="fa-solid fa-cart-flatbed" aria-hidden="true"></i><span>Pedidos</span>
+        </a>
         <a href="#comparador" class="module-nav-item" data-app-module="comparator" title="Comparador de precios">
           <i class="fa-solid fa-scale-balanced" aria-hidden="true"></i>
           <span>Comparador</span>
@@ -444,6 +447,24 @@
         </main>
       </section>
 
+      <section class="module-panel" data-module-panel="purchase-orders" hidden>
+        <div class="orders-shell">
+          <h1>Pedidos a proveedores</h1>
+          <p>Revisa necesidades, compara proveedores vinculados y sigue cada entrega.</p>
+          <div class="orders-settings">
+            <label>Ventas de los últimos días <input id="orderDays" type="number" min="7" max="90" value="21"></label>
+            <label>Cobertura deseada (días) <input id="orderCoverage" type="number" min="1" max="180" value="21"></label>
+            <label>Seguridad (días) <input id="orderSafety" type="number" min="0" max="60" value="7"></label>
+            <button id="orderRefresh" type="button" class="button button-secondary">Actualizar análisis</button>
+          </div>
+          <p id="ordersStatus" role="status" aria-live="polite"></p>
+          <div id="ordersHome" class="orders-home"></div>
+          <details><summary>Comprar por proveedor</summary><div id="ordersProviders" class="orders-provider-list"></div></details>
+          <label class="orders-search">Buscar productos <input id="orderSearch" type="search" placeholder="Código o nombre"></label>
+          <div class="orders-workspace"><div id="ordersProducts"></div><aside><h2>Pedidos por preparar</h2><div id="ordersCart"></div></aside></div>
+          <h2>Seguimiento de pedidos</h2><div id="ordersHistory"></div><div id="ordersDetail"></div>
+        </div>
+      </section>
       <section class="module-panel provider-module-panel" id="invoiceManagementPanel" data-module-panel="providers" hidden>
         <div class="module-loading" id="providerModuleLoading">
           <i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>
