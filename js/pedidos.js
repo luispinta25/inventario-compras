@@ -23,6 +23,8 @@
     current: null,
     busy: false,
     limit: 60,
+    view: "home",
+    trail: [],
   };
   const el = (id) => document.getElementById(id),
     money = (n) => window.app.formatCurrency(n),
@@ -67,6 +69,36 @@
     if (min != null) e.min = min;
     return e;
   }
+  function showView(view, remember = true) {
+    if (remember && state.view !== view) state.trail.push(state.view);
+    state.view = view;
+    document.querySelectorAll("[data-order-view]").forEach((section) => {
+      section.hidden = section.dataset.orderView !== view;
+    });
+    el("ordersNavigation").hidden = view === "home";
+    el("orderBreadcrumb").textContent =
+      {
+        products: state.provider ? "Proveedores / Productos" : "Productos",
+        providers: "Proveedores",
+        cart: "Revisión del pedido",
+        history: "Seguimiento",
+        detail: "Detalle del pedido",
+        settings: "Configuración",
+      }[view] || "";
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+  function back() {
+    showView(state.trail.pop() || "home", false);
+  }
+  function startProducts(provider = null) {
+    if (!state.data) return;
+    state.provider = provider;
+    state.filter = "todos";
+    state.limit = 60;
+    el("orderSearch").value = "";
+    render();
+    showView("products");
+  }
   const supplierById = (id) =>
     state.data.productos.flatMap((p) => p.proveedores).find((r) => r.id === id);
   function cartKey(product) {
@@ -105,39 +137,29 @@
     ]) {
       const b = button("", () => {
         state.filter = key;
-        state.provider = null;
         renderProducts();
       });
       b.className = "order-count";
-      b.append(node("strong", state.data.contadores[key]), node("span", title));
+      b.dataset.filter = key;
+      const count = state.provider
+        ? state.data.productos.filter(
+            (p) =>
+              p.proveedores.some((r) => r.proveedor_id === state.provider) &&
+              (key === "sin_vinculo"
+                ? !p.proveedores.length
+                : p.categoria === key),
+          ).length
+        : state.data.contadores[key];
+      b.append(node("strong", count), node("span", title));
       home.append(b);
     }
     home.append(
       button("Ver todos los productos", () => {
         state.filter = "todos";
-        state.provider = null;
         renderProducts();
       }),
     );
-    const providers = el("ordersProviders");
-    providers.replaceChildren();
-    state.providers.forEach((p) => {
-      const products = state.data.productos.filter((i) =>
-        i.proveedores.some((r) => r.proveedor_id === p.id),
-      );
-      if (!products.length) return;
-      const count = products.filter((i) => i.categoria !== "normal").length;
-      providers.append(
-        button(
-          `${p.empresa} · ${products.length} productos · ${count} por revisar`,
-          () => {
-            state.provider = p.id;
-            state.filter = "todos";
-            renderProducts();
-          },
-        ),
-      );
-    });
+    renderProviders();
     const table = el("ordersHistory");
     table.replaceChildren();
     state.orders.forEach((o) => {
@@ -156,19 +178,65 @@
     renderProducts();
     renderCart();
   }
+  function renderProviders() {
+    const box = el("ordersProviders");
+    box.replaceChildren();
+    const search = el("orderProviderSearch").value.toLocaleLowerCase();
+    state.providers.forEach((p) => {
+      if (!p.empresa.toLocaleLowerCase().includes(search)) return;
+      const products = state.data.productos.filter((i) =>
+        i.proveedores.some((r) => r.proveedor_id === p.id),
+      );
+      if (!products.length) return;
+      const card = button(
+        "",
+        () => startProducts(p.id),
+        "orders-provider-card",
+      );
+      const monogram = node(
+        "span",
+        p.empresa.slice(0, 2).toUpperCase(),
+        "orders-provider-monogram",
+      );
+      const content = node("span", null, "orders-provider-content");
+      content.append(
+        node("strong", p.empresa),
+        node("span", `${products.length} productos vinculados`),
+      );
+      card.append(
+        monogram,
+        content,
+        node(
+          "span",
+          `${products.filter((i) => i.categoria !== "normal").length} por revisar`,
+          "orders-provider-badge",
+        ),
+        node("span", "→"),
+      );
+      box.append(card);
+    });
+    if (!box.children.length)
+      box.append(
+        node(
+          "p",
+          "No hay proveedores con productos vinculados para esta búsqueda.",
+          "orders-empty",
+        ),
+      );
+  }
   function renderProducts() {
     const box = el("ordersProducts");
     box.replaceChildren();
     if (!state.filter) return;
     const search = el("orderSearch").value.toLocaleLowerCase();
-    box.append(
-      node(
-        "h3",
-        state.provider
-          ? `Productos de ${state.providers.find((p) => p.id === state.provider)?.empresa}`
-          : "Necesidades de compra",
-      ),
-    );
+    el("orderProductsTitle").textContent = state.provider
+      ? state.providers.find((p) => p.id === state.provider)?.empresa ||
+        "Productos del proveedor"
+      : "Necesidades de compra";
+    document.querySelectorAll(".order-count").forEach((b) => {
+      b.classList.toggle("is-selected", b.dataset.filter === state.filter);
+      b.setAttribute("aria-pressed", String(b.dataset.filter === state.filter));
+    });
     const rows = state.data.productos.filter(
       (p) =>
         (!state.provider ||
@@ -181,8 +249,22 @@
     );
     for (const p of rows.slice(0, state.limit)) {
       const card = node("article", null, "order-product");
-      card.append(
+      const heading = node("div", null, "order-product-heading");
+      heading.append(
         node("h4", `${p.codigo} · ${p.nombre}`),
+        node(
+          "span",
+          {
+            agotados: "Agotado",
+            riesgo: "En riesgo",
+            bajo: "Bajo mínimo",
+            normal: "Stock suficiente",
+          }[p.categoria] || p.categoria,
+          "order-stock-badge " + p.categoria,
+        ),
+      );
+      card.append(
+        heading,
         node(
           "p",
           `Stock ${p.stock} ${p.unidad || ""} · mínimo ${p.stock_minimo} · vendido ${p.vendido} (${el("orderDays").value} días) · en camino confirmado ${p.en_camino}`,
@@ -310,6 +392,7 @@
   function renderCart() {
     const box = el("ordersCart");
     box.replaceChildren();
+    el("orderCartNav").textContent = `Revisar selección (${state.cart.size})`;
     const groups = new Map();
     for (const item of state.cart.values()) {
       const r = supplierById(item.relationId);
@@ -496,7 +579,7 @@
   async function openOrder(id) {
     state.current = await api("/" + id);
     renderDetail();
-    el("ordersDetail").scrollIntoView({ behavior: "smooth" });
+    showView("detail");
   }
   function renderDetail() {
     const o = state.current,
@@ -571,6 +654,7 @@
               });
           });
           renderCart();
+          showView("cart");
           const notes = el("ordersCart").querySelector("textarea"),
             date = el("ordersCart").querySelector("input[type=date]");
           if (notes) notes.value = o.notas;
@@ -721,11 +805,37 @@
     if (!el("ordersHome")) return;
     if (!el("orderRefresh").dataset.bound) {
       el("orderRefresh").dataset.bound = "1";
-      el("orderRefresh").addEventListener("click", () => run(refresh));
+      el("orderRefresh").addEventListener("click", () =>
+        run(async () => {
+          await refresh();
+          back();
+        }),
+      );
+      el("orderProductsNav").addEventListener("click", () => startProducts());
+      el("orderProvidersNav").addEventListener("click", () =>
+        showView("providers"),
+      );
+      el("orderCartNav").addEventListener("click", () => showView("cart"));
+      el("orderHistoryNav").addEventListener("click", () =>
+        showView("history"),
+      );
+      el("orderSettingsNav").addEventListener("click", () =>
+        showView("settings"),
+      );
+      el("orderBack").addEventListener("click", back);
+      el("orderHomeNav").addEventListener("click", () => {
+        state.trail = [];
+        showView("home", false);
+      });
+      el("orderProviderSearch").addEventListener("input", () => {
+        if (state.data) renderProviders();
+      });
       el("orderSearch").addEventListener("input", () => {
         if (state.data) renderProducts();
       });
     }
+    state.trail = [];
+    showView("home", false);
     await run(refresh);
   };
 

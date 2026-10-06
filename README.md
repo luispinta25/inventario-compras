@@ -105,7 +105,7 @@ La elección se solicita al guardar la captura y se revisa al registrar la factu
 
 Consultar [diseño, pruebas y activación](docs/pedidos-proveedores.md). La migración
 `20261005b_pedidos_proveedores.sql` está aplicada y el backend utiliza
-`ferrisoluciones-inventory-api:20261005-pedidos`. Build `20261005.1`; versión,
+`ferrisoluciones-inventory-api:20261005-pedidos`. Build `20261005.2`; versión,
 build y caché están sincronizados. El estado previo se conserva abajo como
 referencia y el [registro de despliegue](docs/despliegue-20261005.md) documenta la entrega.
 

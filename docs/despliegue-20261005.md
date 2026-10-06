@@ -47,3 +47,15 @@ Los comprobantes y las funciones anteriores siguen disponibles. La bandera
 
 La validación integral con una factura real y el envío de un pedido al grupo
 se realizan durante el uso operativo, con revisión del usuario.
+
+## Corrección de navegación y diseño — build 20261005.2
+
+Entrada con dos tarjetas: Productos y Proveedores. Pantallas independientes
+para catálogo, proveedores, revisión, seguimiento, detalle y ajustes, con
+botón Volver. Colores y encabezado compartidos con los demás módulos.
+Los contadores se limitan al proveedor elegido cuando corresponde.
+La corrección afecta únicamente al frontend; no requiere migraciones.
+
+Verificación de navegador con datos sintéticos: entrada de dos opciones,
+rama proveedor y regreso, filtros, selección, agrupación, guardado, detalle,
+asociación de factura parcial, conversión, compra directa y vista móvil.

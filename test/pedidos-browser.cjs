@@ -160,8 +160,38 @@ const root = path.resolve(__dirname, "..");
       };
     });
     await page.evaluate(() => window.initPedidos());
+    assert.equal(await page.locator("#ordersEntry button:visible").count(), 2);
+    assert.equal(await page.locator("[data-order-view]:visible").count(), 1);
+    await page.screenshot({
+      path: "/private/tmp/pedidos-home.png",
+      fullPage: true,
+    });
+    await page.locator("#orderProvidersNav").click();
+    await page.getByRole("button", { name: /PR Proveedor prueba/ }).click();
+    assert.equal(
+      await page.locator("#orderProductsTitle").textContent(),
+      "Proveedor prueba",
+    );
+    await page.getByRole("button", { name: "← Volver", exact: true }).click();
+    assert.equal(
+      await page.locator('[data-order-view="providers"]:visible').count(),
+      1,
+    );
+    await page
+      .getByRole("button", { name: "Inicio de pedidos", exact: true })
+      .click();
+    await page.locator("#orderProductsNav").click();
     await page.getByRole("button", { name: "1 Agotados" }).click();
+    await page.screenshot({
+      path: "/private/tmp/pedidos-products.png",
+      fullPage: true,
+    });
     await page.getByRole("button", { name: "Añadir al pedido" }).click();
+    assert.equal(await page.locator("#ordersCart:visible").count(), 0);
+    await page
+      .getByRole("button", { name: "Revisar selección (1)", exact: true })
+      .click();
+    assert.equal(await page.locator("[data-order-view]:visible").count(), 1);
     await page.getByRole("button", { name: "Guardar borrador" }).click();
     await page
       .getByRole("heading", {
@@ -219,8 +249,23 @@ const root = path.resolve(__dirname, "..");
     await page.waitForFunction(() => window.association);
     assert.equal(await page.evaluate(() => window.association.pedido_id), null);
     await page.evaluate(() => window.scrollTo(0, 0));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page
+      .getByRole("button", { name: "Inicio de pedidos", exact: true })
+      .click();
+    assert.equal(await page.locator("#ordersEntry button:visible").count(), 2);
     await page.screenshot({
-      path: "/private/tmp/pedidos-preview.png",
+      path: "/private/tmp/pedidos-mobile.png",
+      fullPage: true,
+    });
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      true,
+    );
+    await page.screenshot({
+      path: "/private/tmp/pedidos-mobile.png",
       fullPage: true,
     });
     assert.deepEqual(errors, []);

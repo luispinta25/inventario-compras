@@ -1,12 +1,18 @@
 # Pedidos a proveedores
 
-Entrega del 5 de octubre de 2026, build `20261005.1`. La migración y el backend
+Entrega del 5 de octubre de 2026, build `20261005.2`. La migración y el backend
 se activaron antes de publicar el frontend. Consultar el
 [registro de despliegue](despliegue-20261005.md).
 
 ## Uso
 
-El módulo Pedidos ofrece contadores de agotados, riesgo de agotamiento, bajo
+El inicio muestra únicamente dos opciones principales: **Productos** y
+**Proveedores**. Cada selección reemplaza la pantalla anterior, con navegación
+para volver o regresar al inicio. No se despliegan secciones anidadas debajo
+del menú. Revisión de selección, seguimiento, detalle y ajustes tienen vistas
+independientes. El encabezado conserva los accesos a seguimiento y revisión.
+
+Al entrar por Productos, el módulo ofrece contadores de agotados, riesgo de agotamiento, bajo
 mínimo y productos sin vínculo. Las tres categorías de stock son excluyentes:
 un agotado no se cuenta también como riesgo. Sin vínculo es un contador
 independiente. Se puede profundizar por necesidad o seleccionar un proveedor.

@@ -448,22 +448,43 @@
       </section>
 
       <section class="module-panel" data-module-panel="purchase-orders" hidden>
-        <div class="orders-shell">
-          <h1>Pedidos a proveedores</h1>
-          <p>Revisa necesidades, compara proveedores vinculados y sigue cada entrega.</p>
-          <div class="orders-settings">
-            <label>Ventas de los últimos días <input id="orderDays" type="number" min="7" max="90" value="21"></label>
-            <label>Cobertura deseada (días) <input id="orderCoverage" type="number" min="1" max="180" value="21"></label>
-            <label>Seguridad (días) <input id="orderSafety" type="number" min="0" max="60" value="7"></label>
-            <button id="orderRefresh" type="button" class="button button-secondary">Actualizar análisis</button>
+        <header class="app-header">
+          <div><p class="product-name">COMPRAS</p><h1>Pedidos a proveedores</h1></div>
+          <div class="orders-actions orders-header-actions">
+            <button id="orderHistoryNav" class="button button-secondary" type="button">Seguimiento</button>
+            <button id="orderCartNav" class="button button-primary" type="button">Revisar selección (0)</button>
           </div>
+        </header>
+        <main class="orders-shell">
+          <nav id="ordersNavigation" class="orders-navigation" hidden>
+            <button id="orderBack" class="button button-secondary" type="button">← Volver</button>
+            <span id="orderBreadcrumb"></span>
+            <button id="orderHomeNav" class="orders-text-button" type="button">Inicio de pedidos</button>
+          </nav>
           <p id="ordersStatus" role="status" aria-live="polite"></p>
-          <div id="ordersHome" class="orders-home"></div>
-          <details><summary>Comprar por proveedor</summary><div id="ordersProviders" class="orders-provider-list"></div></details>
-          <label class="orders-search">Buscar productos <input id="orderSearch" type="search" placeholder="Código o nombre"></label>
-          <div class="orders-workspace"><div id="ordersProducts"></div><aside><h2>Pedidos por preparar</h2><div id="ordersCart"></div></aside></div>
-          <h2>Seguimiento de pedidos</h2><div id="ordersHistory"></div><div id="ordersDetail"></div>
-        </div>
+          <section data-order-view="home" id="ordersEntry">
+            <div class="orders-intro"><p class="orders-eyebrow">NUEVO PEDIDO</p><h2>¿Cómo quieres comenzar?</h2><p>Elige el punto de partida para preparar tu compra.</p></div>
+            <div class="orders-entry-grid">
+              <button id="orderProductsNav" class="orders-entry-card" type="button"><span class="orders-entry-icon" aria-hidden="true"><i class="fa-solid fa-boxes-stacked"></i></span><span class="orders-entry-title">Productos</span><span class="orders-entry-description">Revisa lo que necesitas y compara proveedores vinculados.</span><span class="orders-entry-link">Explorar productos <span aria-hidden="true">→</span></span></button>
+              <button id="orderProvidersNav" class="orders-entry-card" type="button"><span class="orders-entry-icon" aria-hidden="true"><i class="fa-solid fa-truck-field"></i></span><span class="orders-entry-title">Proveedores</span><span class="orders-entry-description">Elige un proveedor y prepara el pedido con sus productos.</span><span class="orders-entry-link">Elegir proveedor <span aria-hidden="true">→</span></span></button>
+            </div>
+          </section>
+          <section data-order-view="providers" hidden><div class="orders-section-heading"><div><p class="orders-eyebrow">POR PROVEEDOR</p><h2>Selecciona un proveedor</h2><p>Consulta sus productos vinculados y necesidades de reposición.</p></div></div><label class="orders-search">Buscar proveedor<input id="orderProviderSearch" type="search" placeholder="Nombre del proveedor"></label><div id="ordersProviders" class="orders-provider-list"></div></section>
+          <section data-order-view="products" hidden>
+            <div class="orders-section-heading"><div><p class="orders-eyebrow">SELECCIÓN DE PRODUCTOS</p><h2 id="orderProductsTitle">Necesidades de compra</h2><p>Compara el costo por unidad y elige la presentación del proveedor.</p></div><button id="orderSettingsNav" class="button button-secondary" type="button">Ajustar análisis</button></div>
+            <div id="ordersHome" class="orders-home"></div>
+            <label class="orders-search">Buscar productos<input id="orderSearch" type="search" placeholder="Código o nombre"></label><div id="ordersProducts"></div>
+          </section>
+          <section data-order-view="cart" hidden><div class="orders-section-heading"><div><p class="orders-eyebrow">REVISIÓN</p><h2>Preparar pedidos</h2><p>Tu selección se agrupa por proveedor. Revisa cada pedido antes de guardarlo.</p></div></div><div id="ordersCart"></div></section>
+          <section data-order-view="history" hidden><div class="orders-section-heading"><div><p class="orders-eyebrow">SEGUIMIENTO</p><h2>Pedidos guardados</h2><p>Revisa el estado, las entregas y las facturas de cada pedido.</p></div></div><div id="ordersHistory" class="orders-history-card"></div></section>
+          <section data-order-view="detail" hidden><div id="ordersDetail"></div></section>
+          <section data-order-view="settings" hidden><div class="orders-section-heading"><div><p class="orders-eyebrow">REPOSICIÓN</p><h2>Ajustar análisis</h2><p>Define el período de ventas y la cobertura que quieres mantener.</p></div></div><div class="orders-settings">
+            <label>Ventas de los últimos días<input id="orderDays" type="number" min="7" max="90" value="21"></label>
+            <label>Cobertura deseada (días)<input id="orderCoverage" type="number" min="1" max="180" value="21"></label>
+            <label>Seguridad (días)<input id="orderSafety" type="number" min="0" max="60" value="7"></label>
+            <button id="orderRefresh" type="button" class="button button-primary">Aplicar y volver</button>
+          </div></section>
+        </main>
       </section>
       <section class="module-panel provider-module-panel" id="invoiceManagementPanel" data-module-panel="providers" hidden>
         <div class="module-loading" id="providerModuleLoading">
