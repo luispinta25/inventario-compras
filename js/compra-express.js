@@ -184,22 +184,49 @@
     render();
   }
 
-  function addNew(codigo) {
+  // Producto que no existe en el sistema: reutiliza el modal "Producto nuevo"
+  // del ingreso de facturas (código sugerido, presentación detectada, zona,
+  // stock mínimo). El precio de compra y de venta se ponen en la fila.
+  async function createNewProduct({ code = '', description = '' } = {}) {
+    hideError();
+    try {
+      if (typeof window.ingresoRegistro?.openNewProduct !== 'function') {
+        await window.loadRegisterModule();
+        await window.initIngresoRegistro();
+      }
+    } catch (_) {
+      showError('No se pudo abrir el formulario de producto nuevo.');
+      return;
+    }
+    const excludeCodes = state.items.map((it) => it.codigo).filter(Boolean);
+    const created = await window.ingresoRegistro.openNewProduct({ code, description, cost: 0, excludeCodes });
+    if (!created) return;
+    if (excludeCodes.includes(created.codigo)) {
+      showError(`El código ${created.codigo} ya está en la lista.`);
+      return;
+    }
     state.items.push({
       inventory_id: null,
-      codigo: String(codigo || '').trim(),
-      nombre: '',
+      codigo: created.codigo,
+      nombre: created.nombre,
       cantidad: 1,
       costo: 0,
       precio_venta: 0,
       ventaEditada: false,
       es_nuevo: true,
-      zona: null,
-      unidad: 'UNIDADES'
+      zona: created.zona,
+      unidad: created.unidad_paquete || 'UNIDADES',
+      stock_minimo: created.stock_minimo
     });
     el('expScanInput').value = '';
     el('expSearchResults').hidden = true;
     render();
+  }
+
+  // Lo escrito se usa como código si es numérico, o como nombre si es texto.
+  function newProductFromQuery(query) {
+    const raw = String(query || '').trim();
+    return /^[0-9]+$/.test(raw) ? { code: raw } : { description: raw };
   }
 
   // Enter o escaneo: código exacto -> se agrega; código de barras sin match ->
@@ -211,8 +238,7 @@
     if (exact) { addExisting(exact); return; }
     const looksLikeBarcode = /^[0-9]{6,}$/.test(raw);
     if (looksLikeBarcode || fromScanner) {
-      addNew(raw);
-      showError('Producto nuevo: completa nombre, zona y precio de venta en la fila.');
+      createNewProduct({ code: raw });
       return;
     }
     if (catalogReady()) {
@@ -238,10 +264,7 @@
   function renderResults(list, query) {
     const box = el('expSearchResults');
     box.replaceChildren();
-    if (!list.length) {
-      setResultsStatus(`Sin coincidencias para “${query}”. Escanea el código para crearlo como producto nuevo.`);
-      return;
-    }
+    if (!list.length) setResultsStatus(`Sin coincidencias para “${query}”.`);
     list.forEach((product) => {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -252,6 +275,12 @@
       btn.addEventListener('click', () => addExisting(product));
       box.appendChild(btn);
     });
+    const create = document.createElement('button');
+    create.type = 'button';
+    create.className = 'express-search-item express-search-create';
+    create.innerHTML = `<i class="fa-solid fa-plus" aria-hidden="true"></i> Crear producto nuevo${query ? ` “${esc(query)}”` : ''}`;
+    create.addEventListener('click', () => createNewProduct(newProductFromQuery(query)));
+    box.appendChild(create);
     box.hidden = false;
   }
 
@@ -442,7 +471,8 @@
             costo: round2(it.costo),
             precio_venta: it.precio_venta > 0 ? round2(it.precio_venta) : undefined,
             zona: it.es_nuevo ? it.zona : undefined,
-            unidad_paquete: it.es_nuevo ? it.unidad : undefined
+            unidad_paquete: it.es_nuevo ? it.unidad : undefined,
+            stock_minimo: it.es_nuevo && it.stock_minimo != null ? it.stock_minimo : undefined
           }))
         })
       });
@@ -473,6 +503,7 @@
     el('expScanButton').addEventListener('click', () => (state.reader ? stopScan() : startScan()));
     el('expScannerStop').addEventListener('click', stopScan);
     el('expAddButton').addEventListener('click', () => handleInput(el('expScanInput').value));
+    el('expNewButton').addEventListener('click', () => createNewProduct(newProductFromQuery(el('expScanInput').value)));
     el('expScanInput').addEventListener('input', (event) => runSearch(event.target.value));
     el('expScanInput').addEventListener('keydown', (event) => {
       if (event.key === 'Enter') { event.preventDefault(); handleInput(el('expScanInput').value); }

@@ -887,6 +887,7 @@ body.mobile-capture-only .topbar-brand img { display: block; width: 38px; height
 .express-search-item { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; font: inherit; font-size: 13px; cursor: pointer; }
 .express-search-item:hover { background: #eef0f2; }
 .express-search-item span { color: var(--muted); font-size: 12px; }
+.express-search-create { flex-direction: row; align-items: center; gap: 6px; font-weight: 700; color: var(--accent-dark, #805500); border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; margin-top: 4px; }
 .express-search-empty { margin: 0; padding: 8px 10px; font-size: 13px; color: var(--muted); }
 .express-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .express-table th, .express-table td { padding: 8px 10px; border-bottom: 1px solid #eef0f2; text-align: left; vertical-align: top; }
