@@ -41,6 +41,11 @@
     try { return window.app.inventoryCatalog.get() || []; } catch (_) { return []; }
   }
 
+  // Total de la línea: el que escribió el usuario (tal como viene en la nota)
+  // o cantidad x costo. El costo unitario solo guarda 2 decimales, así que el
+  // total manual evita perder centavos (ej. 18.00 / 280 u = 0.0643 -> 0.06).
+  const lineTotal = (it) => (it.total_linea != null ? round2(it.total_linea) : round2(it.cantidad * it.costo));
+
   function suggestVenta(costo) {
     const c = Number(costo) || 0;
     if (c <= 0) return 0;
@@ -211,6 +216,7 @@
       nombre: created.nombre,
       cantidad: 1,
       costo: 0,
+      total_linea: null,
       precio_venta: 0,
       ventaEditada: false,
       es_nuevo: true,
@@ -320,7 +326,7 @@
         <td class="number"><input type="number" min="0.001" step="0.001" inputmode="decimal" data-idx="${idx}" data-field="cantidad" value="${it.cantidad}"></td>
         <td class="number"><input type="number" min="0" step="0.01" inputmode="decimal" data-idx="${idx}" data-field="costo" value="${Number(it.costo).toFixed(2)}"></td>
         <td class="number"><input type="number" min="0" step="0.01" inputmode="decimal" data-idx="${idx}" data-field="precio_venta" value="${Number(it.precio_venta).toFixed(2)}"></td>
-        <td class="number express-subtotal">${money(round2(it.cantidad * it.costo))}</td>
+        <td class="number"><input type="number" min="0" step="0.01" inputmode="decimal" data-idx="${idx}" data-field="total_linea" value="${lineTotal(it).toFixed(2)}" class="express-subtotal" aria-label="Subtotal de la línea"></td>
         <td><button type="button" class="express-remove" data-idx="${idx}" aria-label="Quitar"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></td>`;
       body.appendChild(tr);
     });
@@ -328,7 +334,7 @@
   }
 
   function recompute() {
-    const total = state.items.reduce((sum, it) => sum + round2(it.cantidad * it.costo), 0);
+    const total = state.items.reduce((sum, it) => sum + lineTotal(it), 0);
     el('expTotal').textContent = money(round2(total));
     el('expLineCount').textContent = String(state.items.length);
     el('expEmpty').hidden = state.items.length > 0;
@@ -346,20 +352,37 @@
     if (field === 'unidad') { it.unidad = target.value; return; }
     if (field === 'zona') { it.zona = target.value ? Number(target.value) : null; return; }
     const value = num(target.value);
-    if (field === 'cantidad') it.cantidad = value;
+    const row = target.closest('tr');
+    if (field === 'total_linea') {
+      it.total_linea = round2(value);
+      it.costo = it.cantidad > 0 ? round2(it.total_linea / it.cantidad) : 0;
+      const costoInput = row?.querySelector('[data-field="costo"]');
+      if (costoInput) costoInput.value = it.costo.toFixed(2);
+      if (!it.ventaEditada) {
+        it.precio_venta = suggestVenta(it.costo);
+        const ventaInput = row?.querySelector('[data-field="precio_venta"]');
+        if (ventaInput) ventaInput.value = it.precio_venta.toFixed(2);
+      }
+      recompute();
+      return;
+    }
+    if (field === 'cantidad') { it.cantidad = value; it.total_linea = null; }
     else if (field === 'costo') {
       it.costo = value;
+      it.total_linea = null;
       if (!it.ventaEditada) {
         it.precio_venta = suggestVenta(value);
-        const ventaInput = el('expBody').querySelector(`[data-idx="${idx}"][data-field="precio_venta"]`);
+        const ventaInput = row?.querySelector('[data-field="precio_venta"]');
         if (ventaInput) ventaInput.value = it.precio_venta.toFixed(2);
       }
     } else if (field === 'precio_venta') {
       it.precio_venta = value;
       it.ventaEditada = true;
     }
-    const sub = target.closest('tr')?.querySelector('.express-subtotal');
-    if (sub) sub.textContent = money(round2(it.cantidad * it.costo));
+    if (field === 'cantidad' || field === 'costo') {
+      const sub = row?.querySelector('[data-field="total_linea"]');
+      if (sub) sub.value = lineTotal(it).toFixed(2);
+    }
     recompute();
   }
 
@@ -436,7 +459,7 @@
         if (!(it.precio_venta > 0)) return `Falta el precio de venta del producto nuevo ${it.codigo}.`;
       }
     }
-    const total = state.items.reduce((s, it) => s + round2(it.cantidad * it.costo), 0);
+    const total = state.items.reduce((s, it) => s + lineTotal(it), 0);
     if (!(round2(total) > 0)) return 'El total debe ser mayor a 0.';
     return null;
   }
@@ -445,7 +468,7 @@
     hideError();
     const err = validate();
     if (err) { showError(err); return; }
-    const total = round2(state.items.reduce((s, it) => s + round2(it.cantidad * it.costo), 0));
+    const total = round2(state.items.reduce((s, it) => s + lineTotal(it), 0));
     const confirmed = await window.app.askConfirm(
       `Registrar la compra express de ${money(total)} a ${providerName()}? Se paga en efectivo y el stock sube de inmediato.`,
       { confirmText: 'Registrar y pagar' }
@@ -469,6 +492,7 @@
             nombre: it.es_nuevo ? it.nombre.trim() : undefined,
             cantidad: it.cantidad,
             costo: round2(it.costo),
+            total_linea: it.total_linea != null ? lineTotal(it) : undefined,
             precio_venta: it.precio_venta > 0 ? round2(it.precio_venta) : undefined,
             zona: it.es_nuevo ? it.zona : undefined,
             unidad_paquete: it.es_nuevo ? it.unidad : undefined,
